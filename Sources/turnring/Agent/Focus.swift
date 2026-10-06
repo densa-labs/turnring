@@ -9,7 +9,15 @@ enum Focus {
         "com.exafunction.windsurf", "com.vscodium",
     ]
 
+    private static let queue = DispatchQueue(label: "turnring.focus")
+
+    /// Runs off the main thread: the first time, macOS asks whether Turnring may control
+    /// the terminal, and the menu shouldn't freeze while that question is open.
     static func bringBack(app: String?, cwd: String?, tty: String?) {
+        queue.async { bringBackNow(app: app, cwd: cwd, tty: tty) }
+    }
+
+    private static func bringBackNow(app: String?, cwd: String?, tty: String?) {
         guard let app else { return }
         if Prefs.focusTab, let tty, let script = tabScript(app: app, tty: tty), run(script) { return }
         if editors.contains(app), let cwd, let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app) {
@@ -22,13 +30,25 @@ enum Focus {
     }
 
     /// Whether the user is looking at the agent: its app is in front and, for terminals
-    /// Turnring can ask, its tab is the selected one.
+    /// Turnring can ask, its tab is the selected one. Call it off the main thread.
+    /// It never triggers a permission prompt: until the user has allowed Turnring to
+    /// control the terminal (by clicking a banner), a terminal counts as not watched.
     static func isWatching(app: String?, tty: String?) -> Bool {
         guard let app, NSWorkspace.shared.frontmostApplication?.bundleIdentifier == app else { return false }
-        guard Prefs.focusTab, let tty, let script = selectedTTYScript(app: app) else { return true }
+        guard let tty, let script = selectedTTYScript(app: app) else { return true }
+        guard Prefs.focusTab, mayAutomate(app) else { return false }
         var error: NSDictionary?
-        guard let front = NSAppleScript(source: script)?.executeAndReturnError(&error).stringValue else { return true }
+        guard let front = NSAppleScript(source: script)?.executeAndReturnError(&error).stringValue else { return false }
         return front == tty
+    }
+
+    /// Whether the user already lets Turnring send Apple Events to the app, without asking.
+    static func mayAutomate(_ bundleID: String) -> Bool {
+        var target = AEAddressDesc()
+        let bytes = Array(bundleID.utf8)
+        guard AECreateDesc(typeApplicationBundleID, bytes, bytes.count, &target) == noErr else { return false }
+        defer { AEDisposeDesc(&target) }
+        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, false) == noErr
     }
 
     private static func tabScript(app: String, tty: String) -> String? {
@@ -77,9 +97,9 @@ enum Focus {
     private static func selectedTTYScript(app: String) -> String? {
         switch app {
         case "com.apple.Terminal":
-            "tell application \"Terminal\" to return tty of selected tab of front window"
+            "with timeout of 2 seconds\ntell application \"Terminal\" to return tty of selected tab of front window\nend timeout"
         case "com.googlecode.iterm2":
-            "tell application \"iTerm2\" to return tty of current session of current window"
+            "with timeout of 2 seconds\ntell application \"iTerm2\" to return tty of current session of current window\nend timeout"
         default:
             nil
         }

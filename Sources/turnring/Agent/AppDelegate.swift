@@ -16,7 +16,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
     private var notifier: Notifier!
     private var server: SocketServer!
     private var http: HTTPServer?
-    private let dispatcher = Dispatcher()
+    /// Banners are prepared off the main thread: asking Terminal which tab is in front
+    /// can take a moment, and the menu must never wait for it.
+    private static let deliverQueue = DispatchQueue(label: "turnring.deliver")
+    private let dispatcher = Dispatcher(deliver: { AppDelegate.deliverQueue.async(execute: $0) })
     private let hooks = Hooks()
     private let windows = WindowPresenter()
     private var resumeTimer: Timer?
