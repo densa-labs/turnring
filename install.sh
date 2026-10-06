@@ -54,6 +54,6 @@ open "$APP"
 echo "Turnring $VERSION is running in your menu bar. Choose Allow when macOS asks about notifications."
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
-  *) echo "Note: add ~/.local/bin to your PATH so hooks can find 'turnring'." ;;
+  *) echo "Note: add ~/.local/bin to your PATH to run 'turnring' from a terminal." ;;
 esac
 echo "It adds hooks for Claude Code and Codex on first run. Codex will ask you to trust the hook once."
