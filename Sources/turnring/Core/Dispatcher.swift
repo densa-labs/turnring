@@ -14,20 +14,28 @@ final class Dispatcher {
     /// Called on every recorded message, for menus that show recent items.
     var onRecord: (() -> Void)?
 
-    init(history: History = History()) {
+    /// Where banners and pushes run, so `turnring notify` gets its reply right away.
+    private let deliver: (@escaping () -> Void) -> Void
+
+    init(history: History = History(), deliver: @escaping (@escaping () -> Void) -> Void = { DispatchQueue.main.async(execute: $0) }) {
         self.history = history
+        self.deliver = deliver
     }
 
-    /// Returns the reply sent back to `turnring notify`: ok, paused, muted or quiet.
+    /// Returns the reply sent back to `turnring notify`: ok, paused or muted. Showing the
+    /// banner (which may ask Terminal which tab is in front) happens afterwards.
     func handle(_ msg: Message) -> String {
         if Prefs.isPaused { return "paused" }
         let route = Rule.route(for: msg, rules: Prefs.rules, muted: Prefs.mutedProjects)
         if route == .mute { return "muted" }
         history.add(msg)
         onRecord?()
-        if Prefs.quietWhenActive, delivery?.isWatching(msg) == true { return "quiet" }
-        if route.banner { delivery?.showBanner(msg) }
-        if route.phone { Ntfy.send(msg) }
+        deliver { [weak self] in
+            guard let self else { return }
+            if Prefs.quietWhenActive, delivery?.isWatching(msg) == true { return }
+            if route.banner { delivery?.showBanner(msg) }
+            if route.phone { Ntfy.send(msg) }
+        }
         return "ok"
     }
 }

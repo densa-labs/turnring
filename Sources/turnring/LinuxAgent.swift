@@ -4,7 +4,7 @@ import Foundation
 /// The Linux agent: no menu bar, banners through `notify-send` (libnotify), plus ntfy,
 /// rules, history and hooks. Run it as a systemd user service (see the README).
 final class LinuxAgent: Delivery {
-    let dispatcher = Dispatcher()
+    let dispatcher = Dispatcher(deliver: { DispatchQueue.global().async(execute: $0) })
 
     func showBanner(_ msg: Message) {
         let process = Process()
