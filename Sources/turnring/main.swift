@@ -8,6 +8,7 @@ usage: turnring agent
        turnring setup [--remove]
        turnring ntfy [topic] [--server URL] | add <topic> | remove <topic> | list | off
        turnring history [search]
+       turnring http on [--port N] | off | status
        turnring version
 """
 
@@ -28,6 +29,19 @@ case "history":
     for entry in history.search(args.dropFirst().joined(separator: " ")).prefix(50) {
         print("\(entry.date.formatted(date: .abbreviated, time: .shortened))  \(entry.msg.fullTitle)")
         if !entry.msg.message.isEmpty { print("    " + entry.msg.message.replacingOccurrences(of: "\n", with: " ")) }
+    }
+case "http":
+    switch args.dropFirst().first {
+    case "on":
+        Prefs.httpEnabled = true
+        if let i = args.firstIndex(of: "--port"), i + 1 < args.count, let port = Int(args[i + 1]) { Prefs.httpPort = port }
+        print("HTTP endpoint on at http://127.0.0.1:\(Prefs.httpPort)/notify (restart Turnring to apply)")
+        print("Token: \(Prefs.httpToken)")
+    case "off":
+        Prefs.httpEnabled = false
+        print("HTTP endpoint off (restart Turnring to apply)")
+    default:
+        print(Prefs.httpEnabled ? "on at http://127.0.0.1:\(Prefs.httpPort)/notify, token \(Prefs.httpToken)" : "off")
     }
 case "ntfy":
     exit(NtfyCommand.run(Array(args.dropFirst())))
