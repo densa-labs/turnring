@@ -59,18 +59,46 @@ final class SettingsModel: ObservableObject {
     private func changed() { NotificationCenter.default.post(name: .turnringSettingsChanged, object: nil) }
 }
 
+/// One pane of the Preferences window. Each is a toolbar tab, like a native settings window.
+enum PreferencesPane: String, CaseIterable {
+    case general = "General", agents = "Agents", phone = "Phone", rules = "Rules", advanced = "Advanced"
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .agents: "terminal"
+        case .phone: "iphone"
+        case .rules: "line.3.horizontal.decrease.circle"
+        case .advanced: "network"
+        }
+    }
+
+    var height: CGFloat {
+        switch self {
+        case .general: 330
+        case .agents: 340
+        case .phone: 430
+        case .rules: 360
+        case .advanced: 240
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    let pane: PreferencesPane
 
     var body: some View {
-        TabView {
-            general.tabItem { Label("General", systemImage: "gearshape") }
-            agents.tabItem { Label("Agents", systemImage: "terminal") }
-            phone.tabItem { Label("Phone", systemImage: "iphone") }
-            rules.tabItem { Label("Rules", systemImage: "line.3.horizontal.decrease.circle") }
-            advanced.tabItem { Label("Advanced", systemImage: "network") }
+        Group {
+            switch pane {
+            case .general: general
+            case .agents: agents
+            case .phone: phone
+            case .rules: rules
+            case .advanced: advanced
+            }
         }
-        .frame(width: 520, height: 420)
+        .frame(width: 560, height: pane.height)
     }
 
     private var general: some View {
@@ -136,7 +164,22 @@ struct SettingsView: View {
     private var phone: some View {
         Form {
             Section {
-                Toggle("Send to my phone with ntfy", isOn: $model.ntfyEnabled)
+                if model.ntfyTopics.isEmpty {
+                    HStack {
+                        Text("Get banners on your phone through the free ntfy app.")
+                        Spacer()
+                        Button("Set Up with ntfy") {
+                            let topic = Ntfy.enable()
+                            model.ntfyTopics = Prefs.ntfyTopics
+                            model.ntfyEnabled = true
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(topic, forType: .string)
+                        }
+                        .help("Creates a private topic and copies it. In the ntfy app, tap + and paste it.")
+                    }
+                } else {
+                    Toggle("Send to my phone with ntfy", isOn: $model.ntfyEnabled)
+                }
                 TextField("Server", text: $model.ntfyServer)
             }
             Section("Topics") {
@@ -286,9 +329,54 @@ struct HistoryView: View {
     }
 }
 
+/// The Preferences window: toolbar tabs across the top, one pane each, resizing to fit.
+final class PreferencesController: NSTabViewController {
+    private let model = SettingsModel()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        tabStyle = .toolbar
+        for pane in PreferencesPane.allCases {
+            let host = NSHostingController(rootView: SettingsView(model: model, pane: pane))
+            host.sizingOptions = .preferredContentSize
+            let item = NSTabViewItem(viewController: host)
+            item.label = pane.rawValue
+            item.image = NSImage(systemSymbolName: pane.symbol, accessibilityDescription: pane.rawValue)
+            item.identifier = pane.rawValue
+            addTabViewItem(item)
+        }
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: item)
+        view.window?.title = item?.label ?? "Turnring Preferences"
+        if item?.identifier as? String == PreferencesPane.agents.rawValue { model.refreshHooks() }
+    }
+
+    func select(_ pane: PreferencesPane) {
+        if let index = PreferencesPane.allCases.firstIndex(of: pane) { selectedTabViewItemIndex = index }
+    }
+}
+
 /// Opens a SwiftUI view in a regular window and brings Turnring forward for it.
 final class WindowPresenter {
     private var windows: [String: NSWindow] = [:]
+    private var preferences: PreferencesController?
+
+    func showPreferences(_ pane: PreferencesPane = .general) {
+        if preferences == nil {
+            let controller = PreferencesController()
+            let window = NSWindow(contentViewController: controller)
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.toolbarStyle = .preference
+            window.isReleasedWhenClosed = false
+            window.center()
+            preferences = controller
+        }
+        preferences!.select(pane)
+        preferences!.view.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     func show<V: View>(_ id: String, title: String, view: @autoclosure () -> V) {
         if let window = windows[id] {

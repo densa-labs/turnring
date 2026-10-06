@@ -83,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
         notifier.post(title: "Turnring is set up", body: body)
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
             notifier.post(title: "Want these on your phone too?",
-                          body: "Choose Phone Notifications in the Turnring menu to send them through the free ntfy app.")
+                          body: "Open Turnring Preferences > Phone to send them through the free ntfy app.")
         }
     }
 
@@ -92,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
         if !added.isEmpty {
             let trust = added.contains(.codex) ? " Codex asks you to trust the Turnring hook once. Choose Trust." : ""
             notifier.post(title: "Turnring hooked up \(Self.list(added.map(\.name)))",
-                          body: "New sessions will notify you here. Turn it off from Hooks in the menu." + trust)
+                          body: "New sessions will notify you here. Turn it off in Turnring Preferences > Agents." + trust)
         }
         guard Prefs.checkForUpdates else { return }
         Updates.check { [weak self] version in
@@ -218,45 +218,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
         recent.submenu!.addItem(item("Show All History\u{2026}", #selector(showHistory), key: "y"))
         menu.addItem(recent)
 
-        let hooksItem = submenu("Hooks")
-        for agent in Hooks.Agent.allCases {
-            let status = hooks.status(agent)
-            let title: String
-            switch status {
-            case .notInstalled: title = "\(agent.name) (not installed)"
-            case .untrusted: title = "\(agent.name) (trust it in Codex)"
-            default: title = agent.name
-            }
-            let row = item(title, #selector(toggleHooks), on: status == .on || status == .untrusted)
-            row.representedObject = agent.rawValue
-            if status == .notInstalled { row.action = nil }
-            row.toolTip = status == .untrusted
-                ? "Start Codex and choose to trust the Turnring hook, or Codex won't run it."
-                : "Runs Turnring when \(agent.name) finishes a turn or needs you."
-            hooksItem.submenu!.addItem(row)
+        // Everyday switches live here; everything else is in Preferences.
+        menu.addItem(.separator())
+        menu.addItem(item("Play Sound", #selector(toggleSound), on: Prefs.playSound))
+        if !Prefs.ntfyTopics.isEmpty {
+            menu.addItem(item("Send to Phone", #selector(toggleNtfy), on: Prefs.ntfyEnabled))
         }
-        menu.addItem(hooksItem)
-
-        let phone = submenu("Phone Notifications")
-        if Prefs.ntfyTopics.isEmpty {
-            let setUp = item("Set Up with ntfy\u{2026}", #selector(setUpNtfy))
-            setUp.toolTip = "Creates a private topic and copies it. Subscribe to it in the free ntfy app."
-            phone.submenu!.addItem(setUp)
-        } else {
-            phone.submenu!.addItem(item("Send to ntfy", #selector(toggleNtfy), on: Prefs.ntfyEnabled))
-            for (index, topic) in Prefs.ntfyTopics.enumerated() {
-                let copy = item("Copy Topic (\(topic))", #selector(copyNtfyTopic))
-                copy.tag = index
-                copy.toolTip = "Subscribe to this topic in the ntfy app to get pushes on your phone."
-                phone.submenu!.addItem(copy)
-            }
+        if hooks.status(.codex) == .untrusted {
+            let codex = item("Codex: Trust the Turnring Hook\u{2026}", #selector(showAgents))
+            codex.toolTip = "Start Codex and choose to trust the Turnring hook, or Codex won't run it."
+            menu.addItem(codex)
         }
-        phone.submenu!.addItem(item("Get the ntfy App\u{2026}", #selector(openNtfySite)))
-        menu.addItem(phone)
-
         menu.addItem(.separator())
         menu.addItem(item("Send Test Notification", #selector(sendTest)))
-        menu.addItem(item("Settings\u{2026}", #selector(showSettings), key: ","))
+        menu.addItem(item("Preferences\u{2026}", #selector(showPreferences), key: ","))
         menu.addItem(.separator())
         let about = NSMenuItem(title: "Turnring \(turnringVersion)", action: nil, keyEquivalent: "")
         about.isEnabled = false
@@ -291,9 +266,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
         windows.show("history", title: "Turnring History", view: HistoryView(model: HistoryModel(history: dispatcher.history)))
     }
 
-    @objc private func showSettings(_ sender: Any?) {
-        windows.show("settings", title: "Turnring Settings", view: SettingsView(model: SettingsModel()))
-    }
+    @objc private func showPreferences(_ sender: Any?) { windows.showPreferences() }
+    @objc private func showAgents(_ sender: Any?) { windows.showPreferences(.agents) }
+    @objc private func toggleSound(_ sender: Any?) { Prefs.playSound.toggle() }
 
     @objc private func sendTest(_ sender: Any?) {
         notifier.post(Message(source: nil, event: "done", title: "Turnring test", message: "Banners are working."))
@@ -307,45 +282,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, Delive
     }
 
     @objc private func toggleNtfy(_ sender: Any?) { Prefs.ntfyEnabled.toggle() }
-
-    @objc private func toggleHooks(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let agent = Hooks.Agent(rawValue: raw) else { return }
-        do {
-            if [.on, .untrusted].contains(hooks.status(agent)) {
-                try hooks.remove(agent)
-                Prefs.hooksOptOut.insert(agent.rawValue)
-            } else {
-                try hooks.install(agent)
-                Prefs.hooksOptOut.remove(agent.rawValue)
-                let trust = agent == .codex ? " Codex asks you to trust the Turnring hook once. Choose Trust." : ""
-                notifier.post(title: "\(agent.name) hooks are on",
-                              body: "New \(agent.name) sessions will notify you here." + trust)
-            }
-        } catch {
-            notifier.post(title: "Couldn't change \(agent.name) hooks", body: "\(error)")
-        }
-    }
-
-    @objc private func setUpNtfy(_ sender: Any?) {
-        let topic = Ntfy.enable()
-        copy(topic)
-        notifier.post(title: "Phone notifications are on",
-                      body: "Topic \(topic) is copied. In the ntfy app, tap + and paste it to subscribe.")
-    }
-
-    @objc private func openNtfySite(_ sender: Any?) {
-        NSWorkspace.shared.open(URL(string: "https://ntfy.sh/#subscribe-phone")!)
-    }
-
-    @objc private func copyNtfyTopic(_ sender: NSMenuItem) {
-        guard Prefs.ntfyTopics.indices.contains(sender.tag) else { return }
-        copy(Prefs.ntfyTopics[sender.tag])
-        notifier.post(title: "ntfy topic copied", body: Prefs.ntfyTopics[sender.tag])
-    }
-
-    private func copy(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
 }
 #endif

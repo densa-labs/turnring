@@ -56,12 +56,10 @@ hooks and key order as they were, and leaves a file alone if it isn't plain JSON
 `notifications-command`.
 
 **Codex asks you to trust new hooks** the next time it starts. Choose to trust
-the Turnring hook, or Codex won't run it. Until then the menu shows Codex as
-"trust it in Codex". Claude Code, Cursor and Gemini CLI pick the hooks up in new
+the Turnring hook, or Codex won't run it. Until then the menu shows a reminder. Claude Code, Cursor and Gemini CLI pick the hooks up in new
 sessions.
 
-Turn hooks on or off per agent from **Hooks** in the menu, in **Settings →
-Agents**, or from a terminal. An agent you turn off stays off.
+Turn hooks on or off per agent in **Preferences → Agents** or from a terminal. An agent you turn off stays off.
 
 ```sh
 turnring setup            # add hooks for every installed agent
@@ -79,7 +77,7 @@ turnring notify --source my-tool --event done      # "Done · <project>"
 and prints one line to stderr if Turnring isn't running.
 
 Tools that can only make HTTP requests can use the local endpoint. Turn it on
-in **Settings → Advanced** (which also shows the token) or with `turnring http on`:
+in **Preferences → Advanced** (which also shows the token) or with `turnring http on`:
 
 ```sh
 curl -X POST http://127.0.0.1:7391/notify -H "Authorization: Bearer <token>" \
@@ -102,33 +100,41 @@ reply is shown as plain text (Markdown is stripped).
   silences that folder.
 - Turnring stays quiet while you're already looking at the agent (its app is in
   front and, for Terminal and iTerm2, its tab is selected). Turn this off in
-  **Settings → General**.
-- Pick separate sounds for "Done" and "Waiting" in **Settings → General**.
+  **Preferences → General**.
+- Pick separate sounds for "Done" and "Waiting" in **Preferences → General**.
 
 ## Menu
+
+The menu bar menu keeps the everyday things:
 
 - **Pause** for 15 minutes, 1 hour, or until resumed. Pausing silences ntfy too,
   and the menu bar icon gets a slash.
 - **Recent** lists the last 5 notifications; click one to go back.
   **Show All History…** (⌘Y) searches everything Turnring has shown, across
   restarts. `turnring history [search]` does the same in a terminal.
-- **Hooks** turns each agent's hooks on or off.
-- **Phone Notifications** sets up ntfy, turns it on or off, and copies topics.
+- **Play Sound** and **Send to Phone** switches.
 - **Send Test Notification** checks that banners get through. If notifications
   are off, the menu says so and links to System Settings.
-- **Settings…** (⌘,) has everything else: sounds, launch at login, quiet mode,
-  tab focus, agents, phone, rules, the HTTP endpoint and update checks.
+
+**Preferences…** (⌘,) opens a window with a tab for each area:
+
+- **General**: sounds for "Done" and "Waiting", launch at login, staying quiet
+  while you watch the agent, exact-tab focus, and update checks.
+- **Agents**: each agent's hooks, and whether Codex still needs you to trust them.
+- **Phone**: ntfy setup, server, topics, priority, tap-to-open and attachments.
+- **Rules**: per-agent and per-project routing.
+- **Advanced**: the local HTTP endpoint.
 
 ## Rules
 
-In **Settings → Rules**, route messages by agent, project and event. The first
+In **Preferences → Rules**, route messages by agent, project and event. The first
 rule that matches wins: banner and phone, banner only, phone only, or mute. For
 example, send "Waiting" from any project containing `prod` to your phone only,
 or mute Aider entirely.
 
 ## Phone notifications (ntfy)
 
-Choose **Phone Notifications → Set Up with ntfy** in the menu. Turnring creates
+Choose **Preferences → Phone → Set Up with ntfy**. Turnring creates
 a private random topic and copies it; subscribe to it in the free
 [ntfy app](https://ntfy.sh). From a terminal:
 
@@ -145,7 +151,7 @@ turnring ntfy off
 "Waiting" pushes go out at high priority. Tapping a push opens the project's
 repository page when it has a GitHub or GitLab `origin`. Replies too long for a
 banner come along as a `reply.txt` attachment. Each of these can be turned off
-in **Settings → Phone**.
+in **Preferences → Phone**.
 
 Anyone who knows a topic on the public ntfy.sh server can read it, so prefer the
 random one.
@@ -155,7 +161,7 @@ random one.
 Turnring checks GitHub once a day and posts a banner when a new version is out.
 Choose **Update** on the banner (or in the menu) to install it with Homebrew or
 the install script, whichever you used. Turn the check off in
-**Settings → General**.
+**Preferences → General**.
 
 ## Linux
 
