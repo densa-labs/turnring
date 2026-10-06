@@ -13,6 +13,8 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
 
 uninstall() {
+  # Take the hooks out of the agents' settings first, while the binary is still here.
+  [ -x "$APP/Contents/MacOS/turnring" ] && "$APP/Contents/MacOS/turnring" setup --remove > /dev/null || true
   pkill -x turnring 2>/dev/null || true
   launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true # LaunchAgent from 0.1.x
   rm -f "$PLIST" "$LINK"
@@ -23,6 +25,7 @@ uninstall() {
 UNIT="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/turnring.service"
 
 uninstall_linux() {
+  [ -x "$LINK" ] && "$LINK" setup --remove > /dev/null || true
   systemctl --user disable --now turnring.service 2>/dev/null || true
   rm -f "$UNIT" "$LINK"
   echo "Turnring removed."
@@ -62,7 +65,7 @@ EOF
   systemctl --user daemon-reload
   systemctl --user enable --now turnring.service
   echo "Turnring $VERSION is running as a systemd user service. Banners use notify-send (libnotify)."
-  echo "It adds hooks for Claude Code, Codex, Cursor, Gemini CLI and Aider when it starts."
+  echo "It connects to every coding agent it finds when it starts."
   exit 0
 fi
 echo "Downloading Turnring $VERSION..."
@@ -92,5 +95,4 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo "Note: add ~/.local/bin to your PATH to run 'turnring' from a terminal." ;;
 esac
-echo "It adds hooks for every agent it finds (Claude Code, Codex, Cursor, Gemini CLI, Aider)."
-echo "Codex will ask you to trust the hook once."
+echo "It connects to every coding agent it finds. If you use Codex, choose Trust when it asks about the new hook."
