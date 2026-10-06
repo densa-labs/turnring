@@ -36,6 +36,10 @@ Notifications**.
 
 ## Hook it up
 
+Apps started from the Dock (the Claude and Codex desktop apps) don't see your
+shell's PATH, so use the full path to `turnring` in hooks: `/opt/homebrew/bin/turnring`
+for Homebrew, `~/.local/bin/turnring` for the install script.
+
 ### Claude Code
 
 Add to `~/.claude/settings.json`:
