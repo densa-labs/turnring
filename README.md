@@ -27,10 +27,11 @@ curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh
 ```
 
 It installs `~/Applications/Turnring.app`, links `~/.local/bin/turnring`, and
-adds a LaunchAgent so Turnring starts at login. Remove it with
+opens Turnring, which turns on launch at login the first time it runs. Remove it with
 `sh install.sh --uninstall`.
 
-The first time Turnring runs, macOS asks whether it may send notifications.
+The first time Turnring runs, it posts a welcome banner, and macOS asks whether
+it may send notifications.
 Choose **Allow**. If you missed it, turn Turnring on in **System Settings →
 Notifications**.
 
@@ -53,8 +54,8 @@ Add to `~/.claude/settings.json`:
 }
 ```
 
-`Stop` gives you "Done · <project>". `Notification` gives you
-"Waiting · <project>" when Claude needs your input.
+`Stop` gives you "Done · Claude Code". `Notification` gives you
+"Waiting · Claude Code" when Claude needs your input.
 
 ### Codex
 
@@ -84,10 +85,20 @@ and prints one line to stderr if Turnring isn't running.
 
 ## Menu
 
-- **Pause** for 15 minutes, 1 hour, or until resumed. Pausing silences ntfy too.
-- **Recent** shows the last 5 notifications since Turnring started.
-- **Preferences**: play sound, send to ntfy and the ntfy topic (click it to copy;
-  both appear once a topic is set), and launch at login (install script only; Homebrew uses `brew services`).
+- **Pause** for 15 minutes, 1 hour, or until resumed. Pausing silences ntfy too,
+  and the menu bar icon gets a slash.
+- **Recent** lists the last 5 notifications since Turnring started. Click one to
+  bring its app forward again.
+- **Preferences**: play sound, launch at login, and, once a topic is set, send to
+  ntfy and copy the ntfy topic. With Homebrew, launch at login belongs to
+  `brew services`.
+- **Send Test Notification** checks that banners get through. If notifications
+  are off, the menu says so and links to System Settings.
+
+Banners are titled by agent, such as "Done · Claude Code" or "Waiting · Codex",
+with the project folder underneath. Clicking one brings back the app the agent
+runs in. macOS shows that app's last-used window; Turnring doesn't pick a
+specific terminal tab.
 
 ## ntfy
 
