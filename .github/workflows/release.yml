@@ -1,0 +1,33 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Build a universal bundle
+        run: |
+          swift build -c release --arch arm64 --arch x86_64
+          APP=build/Turnring.app
+          mkdir -p "$APP/Contents/MacOS"
+          cp .build/apple/Products/Release/turnring "$APP/Contents/MacOS/turnring"
+          cp Resources/Info.plist "$APP/Contents/Info.plist"
+          codesign --force --sign - "$APP"
+      - name: Zip and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ZIP="Turnring-$VERSION.zip"
+          ditto -c -k --keepParent build/Turnring.app "$ZIP"
+          shasum -a 256 "$ZIP" > "$ZIP.sha256"
+          gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --title "Turnring $VERSION" --generate-notes

@@ -1,0 +1,88 @@
+import Foundation
+
+/// `turnring notify`: build one message and hand it to the running agent.
+/// It runs inside agent hooks, so it never fails the hook: it always exits 0 and
+/// gives up on the socket after 500 ms.
+enum NotifyCommand {
+    static func run(_ args: [String]) {
+        var title: String?, message: String?, source: String?, readStdin = false
+        var i = 0
+        func value() -> String? {
+            i += 1
+            return i < args.count ? args[i] : nil
+        }
+        while i < args.count {
+            switch args[i] {
+            case "--title": title = value()
+            case "--message": message = value()
+            case "--source": source = value()
+            case "--stdin": readStdin = true
+            default: warn("ignoring unknown argument \(args[i])")
+            }
+            i += 1
+        }
+
+        var payload: HookPayload?
+        if readStdin {
+            let data = FileHandle.standardInput.readDataToEndOfFile()
+            payload = try? JSONDecoder().decode(HookPayload.self, from: data)
+            if payload == nil, !data.isEmpty { warn("stdin is not a hook payload; using flags only") }
+        }
+
+        let env = ProcessInfo.processInfo.environment
+        let msg = Message.make(source: source, payload: payload, title: title, message: message,
+                               cwd: FileManager.default.currentDirectoryPath,
+                               app: Message.captureApp(env: env))
+        guard var line = try? JSONEncoder().encode(msg) else { return }
+        line.append(0x0A)
+
+        switch send(line, to: Prefs.socketPath, timeoutMs: 500) {
+        case .some("ok"), .some("paused"): break
+        case .some(let reply): warn("agent replied: \(reply)")
+        case .none: warn("agent is not running (start it with `brew services start turnring` or open Turnring.app)")
+        }
+    }
+
+    /// Writes one line and returns the agent's one-line reply, or nil if it can't be reached in time.
+    static func send(_ line: Data, to path: String, timeoutMs: Int) -> String? {
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
+        var tv = timeval(tv_sec: 0, tv_usec: Int32(timeoutMs * 1000))
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+
+        guard var addr = unixAddress(path) else { return nil }
+        let connected = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard connected == 0 else { return nil }
+        let written = line.withUnsafeBytes { write(fd, $0.baseAddress, line.count) }
+        guard written == line.count else { return nil }
+
+        var buf = [UInt8](repeating: 0, count: 256)
+        let n = read(fd, &buf, buf.count)
+        guard n > 0 else { return nil }
+        return String(decoding: buf[0..<n], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+func unixAddress(_ path: String) -> sockaddr_un? {
+    var addr = sockaddr_un()
+    addr.sun_family = sa_family_t(AF_UNIX)
+    let bytes = Array(path.utf8)
+    guard bytes.count < MemoryLayout.size(ofValue: addr.sun_path) else { return nil }
+    withUnsafeMutableBytes(of: &addr.sun_path) { raw in
+        raw.copyBytes(from: bytes)
+        raw[bytes.count] = 0
+    }
+    return addr
+}
+
+func warn(_ text: String) {
+    FileHandle.standardError.write(Data("turnring: \(text)\n".utf8))
+}
