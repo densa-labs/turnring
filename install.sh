@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs Turnring from the latest GitHub release into ~/Applications and starts it at login.
+# Installs Turnring from the latest GitHub release into ~/Applications and starts it.
 # Usage: curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh | sh
 #        sh install.sh --uninstall
 set -eu
@@ -12,7 +12,8 @@ PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 DOMAIN="gui/$(id -u)"
 
 uninstall() {
-  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  pkill -x turnring 2>/dev/null || true
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true # LaunchAgent from 0.1.x
   rm -f "$PLIST" "$LINK"
   rm -rf "$APP"
   echo "Turnring removed. Its settings stay in 'defaults read $LABEL'."
@@ -35,7 +36,9 @@ EXPECTED="$(cut -d ' ' -f 1 < "$TMP/$ZIP.sha256")"
 ACTUAL="$(shasum -a 256 "$TMP/$ZIP" | cut -d ' ' -f 1)"
 [ "$EXPECTED" = "$ACTUAL" ] || { echo "Checksum mismatch for $ZIP." >&2; exit 1; }
 
-launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+pkill -x turnring 2>/dev/null || true
+launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true # LaunchAgent from 0.1.x
+rm -f "$PLIST"
 mkdir -p "$HOME/Applications"
 rm -rf "$APP"
 ditto -x -k "$TMP/$ZIP" "$HOME/Applications"
@@ -45,23 +48,10 @@ codesign --force --sign - "$APP"
 mkdir -p "$(dirname "$LINK")"
 ln -sf "$APP/Contents/MacOS/turnring" "$LINK"
 
-mkdir -p "$(dirname "$PLIST")"
-cat > "$PLIST" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key><array><string>$APP/Contents/MacOS/turnring</string><string>agent</string></array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><dict><key>Crashed</key><true/></dict>
-  <key>ProcessType</key><string>Interactive</string>
-</dict>
-</plist>
-EOF
-launchctl bootstrap "$DOMAIN" "$PLIST"
+# The app turns on launch at login itself on first run (Preferences > Launch at Login).
+open "$APP"
 
-echo "Turnring $VERSION is running in your menu bar. Allow notifications when macOS asks."
+echo "Turnring $VERSION is running in your menu bar. Choose Allow when macOS asks about notifications."
 case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo "Note: add ~/.local/bin to your PATH so hooks can find 'turnring'." ;;
@@ -70,8 +60,8 @@ cat <<'EOF'
 
 Add this to ~/.claude/settings.json to hear from Claude Code:
   "hooks": {
-    "Stop":         [{ "hooks": [{ "type": "command", "command": "turnring notify --source claude-code --stdin" }] }],
-    "Notification": [{ "hooks": [{ "type": "command", "command": "turnring notify --source claude-code --stdin" }] }]
+    "Stop":         [{ "hooks": [{ "type": "command", "command": "~/.local/bin/turnring notify --source claude-code --stdin" }] }],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "~/.local/bin/turnring notify --source claude-code --stdin" }] }]
   }
 See the README for Codex.
 EOF

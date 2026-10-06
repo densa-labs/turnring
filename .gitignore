@@ -2,3 +2,4 @@
 build/
 .swiftpm/
 *.zip
+Resources/icon/preview-*.png

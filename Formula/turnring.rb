@@ -1,7 +1,7 @@
 class Turnring < Formula
   desc "Menu bar notifications when coding agents finish"
   homepage "https://github.com/densa-labs/turnring"
-  url "https://github.com/densa-labs/turnring.git", tag: "v0.1.1"
+  url "https://github.com/densa-labs/turnring.git", tag: "v0.2.0"
   license "MIT"
   head "https://github.com/densa-labs/turnring.git", branch: "main"
 
@@ -12,6 +12,8 @@ class Turnring < Formula
     contents = prefix/"Turnring.app/Contents"
     (contents/"MacOS").install ".build/release/turnring"
     contents.install "Resources/Info.plist"
+    (contents/"Resources").install "Resources/AppIcon.icns", "Resources/icon/MenuBar.svg",
+                                   "Resources/icon/MenuBarPaused.svg"
     system "codesign", "--force", "--sign", "-", prefix/"Turnring.app"
     bin.install_symlink contents/"MacOS/turnring"
   end

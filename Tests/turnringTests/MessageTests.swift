@@ -10,7 +10,9 @@ private func payload(_ json: String) -> HookPayload {
     let msg = Message.make(source: "claude-code",
                            payload: payload(#"{"hook_event_name":"Stop","cwd":"/Users/me/src/turnring","last_assistant_message":"All green."}"#),
                            title: nil, message: nil, cwd: "/tmp", app: "com.apple.Terminal")
-    #expect(msg.title == "Done · turnring")
+    #expect(msg.title == "Done · Claude Code")
+    #expect(msg.subtitle == "turnring")
+    #expect(msg.fullTitle == "Done · Claude Code · turnring")
     #expect(msg.message == "All green.")
     #expect(msg.event == "stop")
     #expect(msg.cwd == "/Users/me/src/turnring")
@@ -21,17 +23,24 @@ private func payload(_ json: String) -> HookPayload {
     let claude = Message.make(source: "claude-code",
                               payload: payload(#"{"hook_event_name":"Notification","cwd":"/a/b","message":"Claude needs your permission"}"#),
                               title: nil, message: nil, cwd: "/tmp", app: nil)
-    #expect(claude.title == "Waiting · b")
+    #expect(claude.title == "Waiting · Claude Code")
+    #expect(claude.subtitle == "b")
     #expect(claude.message == "Claude needs your permission")
     let codex = Message.make(source: "codex", payload: payload(#"{"hook_event_name":"PermissionRequest","cwd":"/a/c"}"#),
                              title: nil, message: nil, cwd: "/tmp", app: nil)
-    #expect(codex.title == "Waiting · c")
+    #expect(codex.title == "Waiting · Codex")
+    #expect(codex.subtitle == "c")
+    let other = Message.make(source: "aider", payload: payload(#"{"hook_event_name":"Stop","cwd":"/a/d"}"#),
+                             title: nil, message: nil, cwd: "/tmp", app: nil)
+    #expect(other.title == "Done · d")
+    #expect(other.subtitle == nil)
 }
 
 @Test func flagsOverridePayloadAndCwdFallsBack() {
     let msg = Message.make(source: nil, payload: payload(#"{"hook_event_name":"Stop"}"#),
                            title: "Custom", message: "Body", cwd: "/x/project", app: nil)
     #expect(msg.title == "Custom")
+    #expect(msg.subtitle == nil)
     #expect(msg.message == "Body")
     #expect(msg.cwd == "/x/project")
     let bare = Message.make(source: nil, payload: nil, title: nil, message: nil, cwd: "/x/project", app: nil)
