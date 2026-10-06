@@ -1,6 +1,6 @@
 import Foundation
 
-let turnringVersion = "0.1.0"
+let turnringVersion = "0.1.1"
 
 let usage = """
 usage: turnring agent

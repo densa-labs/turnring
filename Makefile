@@ -24,8 +24,9 @@ run: bundle
 	cp -R $(APP) ~/Applications/Turnring.app
 	open ~/Applications/Turnring.app
 
+# Build tests outside the checkout: iCloud-synced folders add xattrs that break codesign.
 test:
-	swift test $(TEST_FLAGS)
+	swift test --scratch-path $(HOME)/Library/Caches/turnring-test $(TEST_FLAGS)
 
 clean:
 	rm -rf .build build

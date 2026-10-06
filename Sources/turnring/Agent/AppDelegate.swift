@@ -114,8 +114,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let prefs = NSMenuItem(title: "Preferences", action: nil, keyEquivalent: "")
         prefs.submenu = NSMenu()
         prefs.submenu!.addItem(item("Play sound", #selector(toggleSound), on: Prefs.playSound))
-        if Prefs.ntfyTopic != nil {
+        if let topic = Prefs.ntfyTopic {
             prefs.submenu!.addItem(item("Send to ntfy", #selector(toggleNtfy), on: Prefs.ntfyEnabled))
+            let copy = item("ntfy topic: \(topic)", #selector(copyNtfyTopic))
+            copy.toolTip = "Click to copy the topic, then subscribe to it in the ntfy app."
+            prefs.submenu!.addItem(copy)
         }
         if FileManager.default.fileExists(atPath: launchAgentPlist.path) {
             prefs.submenu!.addItem(item("Launch at login", #selector(toggleLaunchAtLogin), on: launchAtLogin))
@@ -136,6 +139,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleSound(_ sender: Any?) { Prefs.playSound.toggle() }
     @objc private func toggleNtfy(_ sender: Any?) { Prefs.ntfyEnabled.toggle() }
+
+    @objc private func copyNtfyTopic(_ sender: Any?) {
+        guard let topic = Prefs.ntfyTopic else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(topic, forType: .string)
+    }
 
     // MARK: Launch at login (install.sh only)
 

@@ -86,8 +86,8 @@ and prints one line to stderr if Turnring isn't running.
 
 - **Pause** for 15 minutes, 1 hour, or until resumed. Pausing silences ntfy too.
 - **Recent** shows the last 5 notifications since Turnring started.
-- **Preferences**: play sound, send to ntfy (once a topic is set), and launch at
-  login (install script only; Homebrew uses `brew services`).
+- **Preferences**: play sound, send to ntfy and the ntfy topic (click it to copy;
+  both appear once a topic is set), and launch at login (install script only; Homebrew uses `brew services`).
 
 ## ntfy
 
