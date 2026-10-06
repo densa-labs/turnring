@@ -14,7 +14,7 @@ private func payload(_ json: String) -> HookPayload {
     #expect(msg.subtitle == "turnring")
     #expect(msg.fullTitle == "Done · Claude Code · turnring")
     #expect(msg.message == "All green.")
-    #expect(msg.event == "stop")
+    #expect(msg.event == "done")
     #expect(msg.cwd == "/Users/me/src/turnring")
     #expect(msg.app == "com.apple.Terminal")
 }
@@ -30,7 +30,7 @@ private func payload(_ json: String) -> HookPayload {
                              title: nil, message: nil, cwd: "/tmp", app: nil)
     #expect(codex.title == "Waiting · Codex")
     #expect(codex.subtitle == "c")
-    let other = Message.make(source: "aider", payload: payload(#"{"hook_event_name":"Stop","cwd":"/a/d"}"#),
+    let other = Message.make(source: "goose", payload: payload(#"{"hook_event_name":"Stop","cwd":"/a/d"}"#),
                              title: nil, message: nil, cwd: "/tmp", app: nil)
     #expect(other.title == "Done · d")
     #expect(other.subtitle == nil)

@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 /// The menu bar glyphs ship as SVGs in the bundle's Resources (see Resources/icon).
@@ -14,3 +15,4 @@ enum Icons {
         return image
     }
 }
+#endif

@@ -1,7 +1,7 @@
 class Turnring < Formula
   desc "Menu bar notifications when coding agents finish"
   homepage "https://github.com/densa-labs/turnring"
-  url "https://github.com/densa-labs/turnring.git", tag: "v0.3.0"
+  url "https://github.com/densa-labs/turnring.git", tag: "v0.4.0"
   license "MIT"
   head "https://github.com/densa-labs/turnring.git", branch: "main"
 

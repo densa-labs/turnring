@@ -1,12 +1,13 @@
 import Foundation
 
-let turnringVersion = "0.3.0"
+let turnringVersion = "0.4.0"
 
 let usage = """
 usage: turnring agent
-       turnring notify [--title T] [--message M] [--source NAME] [--stdin]
+       turnring notify [--title T] [--message M] [--source NAME] [--event done|waiting] [--stdin]
        turnring setup [--remove]
-       turnring ntfy [topic] [--server URL] | turnring ntfy off
+       turnring ntfy [topic] [--server URL] | add <topic> | remove <topic> | list | off
+       turnring history [search]
        turnring version
 """
 
@@ -22,6 +23,12 @@ case "notify":
     exit(0)
 case "setup":
     exit(SetupCommand.run(Array(args.dropFirst())))
+case "history":
+    let history = History()
+    for entry in history.search(args.dropFirst().joined(separator: " ")).prefix(50) {
+        print("\(entry.date.formatted(date: .abbreviated, time: .shortened))  \(entry.msg.fullTitle)")
+        if !entry.msg.message.isEmpty { print("    " + entry.msg.message.replacingOccurrences(of: "\n", with: " ")) }
+    }
 case "ntfy":
     exit(NtfyCommand.run(Array(args.dropFirst())))
 case "version", "--version":

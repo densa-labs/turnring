@@ -5,7 +5,7 @@ import Foundation
 /// gives up on the socket after 500 ms.
 enum NotifyCommand {
     static func run(_ args: [String]) {
-        var title: String?, message: String?, source: String?, readStdin = false
+        var title: String?, message: String?, source: String?, event: String?, readStdin = false
         var i = 0
         func value() -> String? {
             i += 1
@@ -16,6 +16,7 @@ enum NotifyCommand {
             case "--title": title = value()
             case "--message": message = value()
             case "--source": source = value()
+            case "--event": event = value()
             case "--stdin": readStdin = true
             default: warn("ignoring unknown argument \(args[i])")
             }
@@ -30,29 +31,25 @@ enum NotifyCommand {
         }
 
         let env = ProcessInfo.processInfo.environment
-        let msg = Message.make(source: source, payload: payload, title: title, message: message,
+        let msg = Message.make(source: source, payload: payload, event: event, title: title, message: message,
                                cwd: FileManager.default.currentDirectoryPath,
-                               app: Message.captureApp(env: env))
+                               app: Message.captureApp(env: env), tty: Message.captureTTY())
         guard var line = try? JSONEncoder().encode(msg) else { return }
         line.append(0x0A)
 
         switch send(line, to: Prefs.socketPath, timeoutMs: 500) {
-        case .some("ok"), .some("paused"): break
+        case .some("ok"), .some("paused"), .some("muted"), .some("quiet"): break
         case .some(let reply): warn("agent replied: \(reply)")
-        case .none: warn("agent is not running (start it with `brew services start turnring` or open Turnring.app)")
+        case .none: warn("Turnring is not running (start it with `brew services start turnring` or open Turnring.app)")
         }
     }
 
     /// Writes one line and returns the agent's one-line reply, or nil if it can't be reached in time.
     static func send(_ line: Data, to path: String, timeoutMs: Int) -> String? {
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        let fd = Posix.streamSocket(AF_UNIX)
         guard fd >= 0 else { return nil }
         defer { close(fd) }
-        var tv = timeval(tv_sec: 0, tv_usec: Int32(timeoutMs * 1000))
-        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        Posix.configure(fd, timeoutMs: timeoutMs)
 
         guard var addr = unixAddress(path) else { return nil }
         let connected = withUnsafePointer(to: &addr) {
@@ -61,8 +58,7 @@ enum NotifyCommand {
             }
         }
         guard connected == 0 else { return nil }
-        let written = line.withUnsafeBytes { write(fd, $0.baseAddress, line.count) }
-        guard written == line.count else { return nil }
+        guard Posix.writeAll(fd, line) else { return nil }
 
         var buf = [UInt8](repeating: 0, count: 256)
         let n = read(fd, &buf, buf.count)
