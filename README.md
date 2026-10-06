@@ -30,49 +30,44 @@ It installs `~/Applications/Turnring.app`, links `~/.local/bin/turnring`, and
 opens Turnring, which turns on launch at login the first time it runs. Remove it with
 `sh install.sh --uninstall`.
 
-The first time Turnring runs, it posts a welcome banner, and macOS asks whether
-it may send notifications.
+The first time Turnring runs, it posts a banner saying what it set up, and macOS
+asks whether it may send notifications.
 Choose **Allow**. If you missed it, turn Turnring on in **System Settings →
 Notifications**.
 
 ## Hook it up
 
-Apps started from the Dock (the Claude and Codex desktop apps) don't see your
-shell's PATH, so use the full path to `turnring` in hooks: `/opt/homebrew/bin/turnring`
-for Homebrew, `~/.local/bin/turnring` for the install script.
+The first time Turnring runs, it adds its hooks to every agent it finds:
+`~/.claude/settings.json` for Claude Code and `~/.codex/hooks.json` for Codex
+(CLI and app). It backs up each file once as `*.turnring-backup` and leaves your
+other settings and hooks alone. A banner tells you what it set up.
 
-### Claude Code
+**Codex asks you to trust new hooks** the next time it starts. Choose to trust
+the Turnring hook, or Codex won't run it. Claude Code picks the hooks up in new
+sessions.
 
-Add to `~/.claude/settings.json`:
+Turn hooks on or off per agent from **Hooks** in the menu, or from a terminal:
+
+```sh
+turnring setup            # add hooks for every installed agent
+turnring setup --remove   # take them out again
+```
+
+Turnring leaves a config file alone if it isn't plain JSON (for example, if it
+has comments). In that case, add the hook by hand:
 
 ```json
 {
   "hooks": {
-    "Stop":         [{ "hooks": [{ "type": "command", "command": "turnring notify --source claude-code --stdin" }] }],
-    "Notification": [{ "hooks": [{ "type": "command", "command": "turnring notify --source claude-code --stdin" }] }]
+    "Stop":         [{ "hooks": [{ "type": "command", "command": "/opt/homebrew/bin/turnring notify --source claude-code --stdin" }] }],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "/opt/homebrew/bin/turnring notify --source claude-code --stdin" }] }]
   }
 }
 ```
 
-`Stop` gives you "Done · Claude Code". `Notification` gives you
-"Waiting · Claude Code" when Claude needs your input.
-
-### Codex
-
-Add to `~/.codex/hooks.json` (shared by the Codex CLI and app):
-
-```json
-{
-  "hooks": {
-    "Stop":              [{ "hooks": [{ "type": "command", "command": "turnring notify --source codex --stdin" }] }],
-    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "turnring notify --source codex --stdin" }] }]
-  }
-}
-```
-
-Codex asks you to trust new hooks before it runs them. Turnring uses hooks
-rather than Codex's `notify` setting, so it doesn't replace anything you already
-run from `notify`.
+For Codex, use `--source codex` with the `Stop` and `PermissionRequest` events.
+Use the full path to `turnring` (`~/.local/bin/turnring` for the install
+script), because the Claude and Codex desktop apps don't see your shell's PATH.
 
 ### Anything else
 
@@ -89,9 +84,10 @@ and prints one line to stderr if Turnring isn't running.
   and the menu bar icon gets a slash.
 - **Recent** lists the last 5 notifications since Turnring started. Click one to
   bring its app forward again.
-- **Preferences**: play sound, launch at login, and, once a topic is set, send to
-  ntfy and copy the ntfy topic. With Homebrew, launch at login belongs to
-  `brew services`.
+- **Hooks** turns the Claude Code and Codex hooks on or off.
+- **Preferences**: play sound and launch at login. With Homebrew, launch at
+  login belongs to `brew services`.
+- **Phone Notifications** sets up ntfy, turns it on or off, and copies your topic.
 - **Send Test Notification** checks that banners get through. If notifications
   are off, the menu says so and links to System Settings.
 
@@ -100,7 +96,11 @@ with the project folder underneath. Clicking one brings back the app the agent
 runs in. macOS shows that app's last-used window; Turnring doesn't pick a
 specific terminal tab.
 
-## ntfy
+## Phone notifications (ntfy)
+
+Choose **Phone Notifications → Set Up with ntfy** in the menu. Turnring creates
+a private random topic and copies it; subscribe to it in the free
+[ntfy app](https://ntfy.sh). From a terminal:
 
 ```sh
 turnring ntfy                      # turn on with a random topic on ntfy.sh

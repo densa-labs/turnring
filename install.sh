@@ -56,12 +56,4 @@ case ":$PATH:" in
   *":$HOME/.local/bin:"*) ;;
   *) echo "Note: add ~/.local/bin to your PATH so hooks can find 'turnring'." ;;
 esac
-cat <<'EOF'
-
-Add this to ~/.claude/settings.json to hear from Claude Code:
-  "hooks": {
-    "Stop":         [{ "hooks": [{ "type": "command", "command": "~/.local/bin/turnring notify --source claude-code --stdin" }] }],
-    "Notification": [{ "hooks": [{ "type": "command", "command": "~/.local/bin/turnring notify --source claude-code --stdin" }] }]
-  }
-See the README for Codex.
-EOF
+echo "It adds hooks for Claude Code and Codex on first run. Codex will ask you to trust the hook once."
