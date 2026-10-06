@@ -1,11 +1,12 @@
 import Foundation
 
-let turnringVersion = "0.2.0"
+let turnringVersion = "0.3.0"
 
 let usage = """
 usage: turnring agent
        turnring notify [--title T] [--message M] [--source NAME] [--stdin]
-       turnring ntfy <topic> [--server URL] | turnring ntfy off
+       turnring setup [--remove]
+       turnring ntfy [topic] [--server URL] | turnring ntfy off
        turnring version
 """
 
@@ -19,6 +20,8 @@ case "agent":
 case "notify":
     NotifyCommand.run(Array(args.dropFirst()))
     exit(0)
+case "setup":
+    exit(SetupCommand.run(Array(args.dropFirst())))
 case "ntfy":
     exit(NtfyCommand.run(Array(args.dropFirst())))
 case "version", "--version":

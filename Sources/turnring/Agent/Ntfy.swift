@@ -2,6 +2,16 @@ import Foundation
 
 /// Sends one push per message to ntfy, alongside the native banner. No retries.
 enum Ntfy {
+    /// Turns ntfy on, keeping an existing topic. Returns the topic.
+    @discardableResult
+    static func enable(topic: String? = nil) -> String {
+        // Anyone who guesses a topic on public ntfy.sh can read it, so default to a random one.
+        let chosen = topic ?? Prefs.ntfyTopic ?? "turnring-" + UUID().uuidString.lowercased().prefix(13)
+        Prefs.ntfyTopic = chosen
+        Prefs.ntfyEnabled = true
+        return chosen
+    }
+
     static func send(title: String, message: String) {
         guard Prefs.ntfyEnabled, let topic = Prefs.ntfyTopic,
               let url = URL(string: Prefs.ntfyServer) else { return }
@@ -51,10 +61,7 @@ enum NtfyCommand {
             }
             Prefs.ntfyServer = server
         }
-        // Anyone who guesses a topic on public ntfy.sh can read it, so default to a random one.
-        let chosen = topic ?? Prefs.ntfyTopic ?? "turnring-" + UUID().uuidString.lowercased().prefix(13)
-        Prefs.ntfyTopic = chosen
-        Prefs.ntfyEnabled = true
+        let chosen = Ntfy.enable(topic: topic)
         print("ntfy is on: \(Prefs.ntfyServer)/\(chosen)")
         print("Subscribe to that topic in the ntfy app to get pushes on your phone.")
         return 0

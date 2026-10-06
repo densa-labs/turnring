@@ -28,9 +28,10 @@ enum Prefs {
     }
     static var isPaused: Bool { (pausedUntil ?? .distantPast) > Date() }
 
-    static var onboarded: Bool {
-        get { defaults.bool(forKey: "onboarded") }
-        set { defaults.set(newValue, forKey: "onboarded") }
+    /// The last onboarding the user has seen. 1 was the 0.2 welcome; 2 adds hooks and ntfy.
+    static var onboardingVersion: Int {
+        get { defaults.object(forKey: "onboardingVersion") as? Int ?? (defaults.bool(forKey: "onboarded") ? 1 : 0) }
+        set { defaults.set(newValue, forKey: "onboardingVersion") }
     }
 
     static var ntfyServer: String {

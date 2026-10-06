@@ -47,15 +47,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return "ok"
     }
 
-    /// The first launch says where Turnring lives (which also triggers the permission
-    /// prompt at a moment that explains it) and turns on launch at login.
+    private let hooks = Hooks()
+
+    /// First run: turn on launch at login, add the agent hooks, and say what happened.
+    /// The first banner also brings up the notification permission prompt at a moment
+    /// that explains it. Users of 0.2 get the hooks and ntfy part once.
     private func onboardOnFirstRun() {
-        guard !Prefs.onboarded else { return }
-        Prefs.onboarded = true
-        if !LoginItem.managedByBrew { LoginItem.isEnabled = true }
-        notifier.post(Message(title: "Turnring is running",
-                              message: "It's in your menu bar. You'll get a banner here when Claude Code or Codex finishes a turn."),
-                      sound: false)
+        let seen = Prefs.onboardingVersion
+        guard seen < 2 else { return }
+        Prefs.onboardingVersion = 2
+        if seen == 0, !LoginItem.managedByBrew { LoginItem.isEnabled = true }
+
+        var on: [Hooks.Agent] = []
+        for agent in Hooks.Agent.allCases where hooks.status(agent) != .notInstalled {
+            do {
+                try hooks.install(agent)
+                on.append(agent)
+            } catch {
+                NSLog("turnring: could not add \(agent.name) hooks: \(error)")
+            }
+        }
+        let body: String
+        if on.isEmpty {
+            body = "Install Claude Code or Codex, then turn on its hook from Hooks in the Turnring menu."
+        } else {
+            body = on.map(\.name).joined(separator: " and ") + " will tell you here when a turn ends."
+                + (on.contains(.codex) ? " Codex asks you to trust the Turnring hook once. Choose Trust." : "")
+        }
+        notifier.post(Message(title: "Turnring is set up", message: body), sound: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+            notifier.post(Message(title: "Want these on your phone too?",
+                                  message: "Choose Phone Notifications in the Turnring menu to send them through the free ntfy app."),
+                          sound: false)
+        }
     }
 
     // MARK: Pause
@@ -129,6 +153,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(recentItem)
 
+        let hooksItem = NSMenuItem(title: "Hooks", action: nil, keyEquivalent: "")
+        hooksItem.submenu = NSMenu()
+        for agent in Hooks.Agent.allCases {
+            let status = hooks.status(agent)
+            let row = item(status == .notInstalled ? "\(agent.name) (not installed)" : agent.name,
+                           #selector(toggleHooks), on: status == .on)
+            row.representedObject = agent.rawValue
+            if status == .notInstalled { row.action = nil }
+            row.toolTip = "Runs Turnring when \(agent.name) finishes a turn or needs you."
+            hooksItem.submenu!.addItem(row)
+        }
+        if hooks.status(.codex) == .on {
+            let note = NSMenuItem(title: "Codex asks you to trust new hooks once.", action: nil, keyEquivalent: "")
+            note.isEnabled = false
+            hooksItem.submenu!.addItem(.separator())
+            hooksItem.submenu!.addItem(note)
+        }
+        menu.addItem(hooksItem)
+
         let prefs = NSMenuItem(title: "Preferences", action: nil, keyEquivalent: "")
         prefs.submenu = NSMenu()
         prefs.submenu!.addItem(item("Play Sound", #selector(toggleSound), on: Prefs.playSound))
@@ -138,14 +181,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             login.toolTip = "Managed by Homebrew. Run `brew services stop turnring` to turn it off."
         }
         prefs.submenu!.addItem(login)
-        if let topic = Prefs.ntfyTopic {
-            prefs.submenu!.addItem(.separator())
-            prefs.submenu!.addItem(item("Send to ntfy", #selector(toggleNtfy), on: Prefs.ntfyEnabled))
-            let copy = item("Copy ntfy Topic (\(topic))", #selector(copyNtfyTopic))
-            copy.toolTip = "Subscribe to this topic in the ntfy app to get pushes on your phone."
-            prefs.submenu!.addItem(copy)
-        }
         menu.addItem(prefs)
+
+        let phone = NSMenuItem(title: "Phone Notifications", action: nil, keyEquivalent: "")
+        phone.submenu = NSMenu()
+        if let topic = Prefs.ntfyTopic {
+            phone.submenu!.addItem(item("Send to ntfy", #selector(toggleNtfy), on: Prefs.ntfyEnabled))
+            let copy = item("Copy Topic (\(topic))", #selector(copyNtfyTopic))
+            copy.toolTip = "Subscribe to this topic in the ntfy app to get pushes on your phone."
+            phone.submenu!.addItem(copy)
+        } else {
+            let setUp = item("Set Up with ntfy\u{2026}", #selector(setUpNtfy))
+            setUp.toolTip = "Creates a private topic and copies it. Subscribe to it in the free ntfy app."
+            phone.submenu!.addItem(setUp)
+        }
+        phone.submenu!.addItem(item("Get the ntfy App\u{2026}", #selector(openNtfySite)))
+        menu.addItem(phone)
 
         menu.addItem(item("Send Test Notification", #selector(sendTest)))
         menu.addItem(.separator())
@@ -181,9 +232,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func toggleNtfy(_ sender: Any?) { Prefs.ntfyEnabled.toggle() }
     @objc private func toggleLaunchAtLogin(_ sender: Any?) { LoginItem.isEnabled.toggle() }
 
+    @objc private func toggleHooks(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let agent = Hooks.Agent(rawValue: raw) else { return }
+        do {
+            if hooks.status(agent) == .on {
+                try hooks.remove(agent)
+            } else {
+                try hooks.install(agent)
+                let trust = agent == .codex ? " Codex asks you to trust the Turnring hook once. Choose Trust." : ""
+                notifier.post(Message(title: "\(agent.name) hooks are on",
+                                      message: "New \(agent.name) sessions will notify you here." + trust), sound: false)
+            }
+        } catch {
+            notifier.post(Message(title: "Couldn't change \(agent.name) hooks", message: "\(error)"), sound: false)
+        }
+    }
+
+    @objc private func setUpNtfy(_ sender: Any?) {
+        let topic = Ntfy.enable()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(topic, forType: .string)
+        notifier.post(Message(title: "Phone notifications are on",
+                              message: "Topic \(topic) is copied. In the ntfy app, tap + and paste it to subscribe."),
+                      sound: false)
+    }
+
+    @objc private func openNtfySite(_ sender: Any?) {
+        NSWorkspace.shared.open(URL(string: "https://ntfy.sh/#subscribe-phone")!)
+    }
+
     @objc private func copyNtfyTopic(_ sender: Any?) {
         guard let topic = Prefs.ntfyTopic else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(topic, forType: .string)
+        notifier.post(Message(title: "ntfy topic copied", message: topic), sound: false)
     }
 }
