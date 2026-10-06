@@ -27,8 +27,7 @@ curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh
 ```
 
 It installs `~/Applications/Turnring.app`, links `~/.local/bin/turnring`, and
-opens Turnring, which turns on launch at login the first time it runs. Remove it with
-`sh install.sh --uninstall`.
+opens Turnring, which turns on launch at login the first time it runs.
 
 The first time Turnring runs, it posts a banner saying what it set up, and macOS
 asks whether it may send notifications.
@@ -111,6 +110,16 @@ turnring ntfy off
 
 Subscribe to the printed topic in the ntfy app. Anyone who knows a topic on the
 public ntfy.sh server can read it, so prefer the random one.
+
+## Uninstall
+
+Remove the hooks first, then the app:
+
+```sh
+turnring setup --remove
+brew services stop turnring && brew uninstall turnring   # Homebrew
+sh install.sh --uninstall                                 # install script
+```
 
 ## Downloaded the zip by hand?
 
