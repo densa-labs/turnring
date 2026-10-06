@@ -33,3 +33,48 @@ jobs:
           ditto -c -k --keepParent build/Turnring.app "$ZIP"
           shasum -a 256 "$ZIP" > "$ZIP.sha256"
           gh release create "$GITHUB_REF_NAME" "$ZIP" "$ZIP.sha256" --title "Turnring $VERSION" --generate-notes
+
+  linux:
+    needs: release
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build -c release --static-swift-stdlib
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apt-get update -qq && apt-get install -y -qq gh > /dev/null
+          VERSION="${GITHUB_REF_NAME#v}"
+          TAR="turnring-$VERSION-linux-x86_64.tar.gz"
+          tar -czf "$TAR" -C .build/release turnring
+          sha256sum "$TAR" > "$TAR.sha256"
+          gh release upload "$GITHUB_REF_NAME" "$TAR" "$TAR.sha256" --repo "$GITHUB_REPOSITORY"
+
+  windows:
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+      - name: Build
+        run: swift build -c release
+      - name: Package with the Swift runtime
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          New-Item -ItemType Directory -Force turnring | Out-Null
+          Copy-Item .build/release/turnring.exe turnring/
+          $runtime = Split-Path (Get-Command swiftCore.dll).Source
+          Copy-Item "$runtime/*.dll" turnring/
+          $zip = "turnring-$version-windows-x86_64.zip"
+          Compress-Archive -Path turnring/* -DestinationPath $zip
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  $zip" | Out-File -Encoding ascii "$zip.sha256"
+          gh release upload "${{ github.ref_name }}" $zip "$zip.sha256" --repo "${{ github.repository }}"

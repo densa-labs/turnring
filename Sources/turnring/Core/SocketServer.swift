@@ -1,3 +1,4 @@
+#if !os(Windows)
 import Foundation
 
 /// Listens on the Unix socket. Each connection carries one JSON line and gets one reply line:
@@ -21,7 +22,7 @@ final class SocketServer {
                                                 withIntermediateDirectories: true)
         unlink(path)
 
-        fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        fd = Posix.streamSocket(AF_UNIX)
         guard fd >= 0, var addr = unixAddress(path) else { throw StartError.failed("socket") }
         let bound = withUnsafePointer(to: &addr) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
@@ -45,10 +46,7 @@ final class SocketServer {
 
     private func serve(_ client: Int32) {
         defer { close(client) }
-        var tv = timeval(tv_sec: 1, tv_usec: 0)
-        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-        var noSigPipe: Int32 = 1
-        setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+        Posix.configure(client, timeoutMs: 1000)
 
         var data = Data()
         var buf = [UInt8](repeating: 0, count: 4096)
@@ -65,6 +63,7 @@ final class SocketServer {
         } else {
             reply = "error bad message"
         }
-        _ = (reply + "\n").withCString { write(client, $0, strlen($0)) }
+        _ = Posix.writeAll(client, Data((reply + "\n").utf8))
     }
 }
+#endif

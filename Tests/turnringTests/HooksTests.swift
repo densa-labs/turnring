@@ -74,8 +74,10 @@ private func json(_ url: URL) -> [String: Any] {
     #expect(try Data(contentsOf: file) == original)
 }
 
+#if !os(Windows)
 @Test func stablePathAvoidsTheVersionedCellar() {
     let path = Hooks.stableBinaryPath(
         executable: "/opt/homebrew/Cellar/turnring/0.3.0/Turnring.app/Contents/MacOS/turnring", home: "/nonexistent")
     #expect(path == "/opt/homebrew/bin/turnring")
 }
+#endif
