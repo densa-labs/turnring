@@ -22,7 +22,7 @@ struct Rule: Codable, Equatable, Identifiable {
     var agent: String?
     /// Matches when the project folder name contains this text (case-insensitive). Empty matches all.
     var project: String = ""
-    /// Restricts the rule to "done" or "waiting" messages. Nil matches both.
+    /// Restricts the rule to one kind: "done", "waiting", "limit" or "error". Nil matches all.
     var event: String?
     var route: Route = .everywhere
 

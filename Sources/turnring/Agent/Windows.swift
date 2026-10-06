@@ -105,7 +105,7 @@ struct SettingsView: View {
         Form {
             Toggle("Play sound", isOn: $model.playSound)
             soundPicker("Sound when done", selection: $model.doneSound)
-            soundPicker("Sound when waiting", selection: $model.waitingSound)
+            soundPicker("Sound when it needs you", selection: $model.waitingSound)
             Toggle("Launch at login", isOn: $model.launchAtLogin)
                 .disabled(LoginItem.managedByBrew)
                 .help(LoginItem.managedByBrew ? "Managed by Homebrew. Run `brew services stop turnring` to turn it off." : "")
@@ -208,7 +208,7 @@ struct SettingsView: View {
                 }
             }
             Section {
-                Toggle("Send \"Waiting\" at high priority", isOn: $model.ntfyUrgentWaiting)
+                Toggle("Send approvals, limits and errors at high priority", isOn: $model.ntfyUrgentWaiting)
                 Toggle("Tapping a push opens the project's repository", isOn: $model.ntfyClickRepo)
                 Toggle("Attach long replies as a text file", isOn: $model.ntfyAttachReply)
                 Link("Get the ntfy app", destination: URL(string: "https://ntfy.sh/#subscribe-phone")!)
@@ -231,9 +231,11 @@ struct SettingsView: View {
                         .labelsHidden()
                         TextField("Project contains", text: $rule.project)
                         Picker("Event", selection: $rule.event) {
-                            Text("Done or waiting").tag(String?.none)
+                            Text("Any event").tag(String?.none)
                             Text("Done").tag(Optional("done"))
-                            Text("Waiting").tag(Optional("waiting"))
+                            Text("Needs approval or input").tag(Optional("waiting"))
+                            Text("Limit hit").tag(Optional("limit"))
+                            Text("Error").tag(Optional("error"))
                         }
                         .labelsHidden()
                         Picker("Route", selection: $rule.route) {

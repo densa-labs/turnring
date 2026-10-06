@@ -1,3 +1,4 @@
+#if !os(Windows)
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -38,3 +39,4 @@ enum Posix {
         }
     }
 }
+#endif

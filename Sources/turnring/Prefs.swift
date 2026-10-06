@@ -14,6 +14,9 @@ enum Prefs {
     static var supportDir: URL {
         #if os(macOS)
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Turnring")
+        #elseif os(Windows)
+        URL(fileURLWithPath: ProcessInfo.processInfo.environment["APPDATA"] ?? NSHomeDirectory())
+            .appendingPathComponent("Turnring")
         #else
         URL(fileURLWithPath: ProcessInfo.processInfo.environment["XDG_DATA_HOME"]
             ?? NSHomeDirectory() + "/.local/share").appendingPathComponent("turnring")

@@ -2,13 +2,14 @@ import Foundation
 
 /// Adds and removes Turnring's hooks in each agent's config file.
 ///
-/// Claude Code, Codex and Gemini CLI share one layout:
+/// Claude Code, Codex, Gemini CLI and Grok Build share one layout:
 /// `{"hooks": {"<Event>": [{"hooks": [{"type": "command", "command": "…"}]}]}}`.
 /// Cursor uses `{"version": 1, "hooks": {"<event>": [{"command": "…"}]}}`.
+/// Antigravity names each hook: `{"turnring": {"Stop": [{"type": "command", "command": "…"}]}}`.
 /// Aider has no hooks; it runs `notifications-command` from ~/.aider.conf.yml.
 struct Hooks {
     enum Agent: String, CaseIterable {
-        case claudeCode = "claude-code", codex, cursor, gemini, aider
+        case claudeCode = "claude-code", codex, cursor, gemini, antigravity, grok, aider
 
         var name: String { Message.agentNames[rawValue]! }
 
@@ -18,7 +19,10 @@ struct Hooks {
             case .claudeCode: [".claude"]
             case .codex: [".codex"]
             case .cursor: [".cursor"]
-            case .gemini: [".gemini"]
+            // Antigravity also lives in ~/.gemini, so Gemini CLI is recognized by its own files.
+            case .gemini: [".gemini/settings.json", ".gemini/oauth_creds.json", ".gemini/google_accounts.json"]
+            case .antigravity: [".gemini/antigravity", ".gemini/antigravity-cli", ".gemini/config"]
+            case .grok: [".grok"]
             case .aider: [".aider.conf.yml", ".local/bin/aider"]
             }
         }
@@ -29,16 +33,22 @@ struct Hooks {
             case .codex: ".codex/hooks.json"
             case .cursor: ".cursor/hooks.json"
             case .gemini: ".gemini/settings.json"
+            case .antigravity: ".gemini/config/hooks.json"
+            case .grok: ".grok/hooks/turnring.json"
             case .aider: ".aider.conf.yml"
             }
         }
 
         var events: [String] {
             switch self {
-            case .claudeCode: ["Stop", "Notification"]
+            // Notification covers permission prompts, plan approval, questions and quota;
+            // StopFailure covers rate and usage limits and API errors.
+            case .claudeCode: ["Stop", "Notification", "StopFailure"]
             case .codex: ["Stop", "PermissionRequest"]
             case .cursor: ["stop"]
             case .gemini: ["AfterAgent", "Notification"]
+            case .antigravity: ["Stop"]
+            case .grok: ["Stop", "Notification", "StopFailure"]
             case .aider: []
             }
         }
@@ -65,7 +75,11 @@ struct Hooks {
     /// The `turnring` path written into hooks. It must survive upgrades.
     var binary: String = Hooks.stableBinaryPath()
     /// Extra places to look for agents installed outside home (Homebrew), for detection only.
-    var extraBinaries: [Agent: [String]] = [.aider: ["/opt/homebrew/bin/aider", "/usr/local/bin/aider"]]
+    var extraBinaries: [Agent: [String]] = [
+        .aider: ["/opt/homebrew/bin/aider", "/usr/local/bin/aider"],
+        .antigravity: ["/Applications/Antigravity.app"],
+        .grok: ["/opt/homebrew/bin/grok", "/usr/local/bin/grok"],
+    ]
 
     private func url(_ agent: Agent) -> URL { home.appendingPathComponent(agent.hooksFile) }
 
@@ -78,7 +92,7 @@ struct Hooks {
     func status(_ agent: Agent) -> Status {
         guard isInstalled(agent) else { return .notInstalled }
         if agent == .aider {
-            return aiderLines().contains { $0.hasPrefix("notifications-command:") && $0.contains("turnring notify") }
+            return aiderLines().contains { $0.hasPrefix("notifications-command:") && Hooks.isTurnringCommand($0) }
                 ? .on : .off
         }
         guard let root = try? read(agent), agent.events.allSatisfy({ position(root, agent, $0) != nil }) else {
@@ -94,6 +108,18 @@ struct Hooks {
         if agent == .aider { return try installAider() }
         var root = try read(agent) ?? .object([])
         guard root.isObject else { throw HookError.unreadable(url(agent).path) }
+        if agent == .antigravity {
+            var mine = root[Hooks.antigravityName] ?? .object([])
+            var changed = false
+            for event in agent.events where position(root, agent, event) == nil {
+                mine[event] = .array((mine[event]?.array ?? []) + [entry(agent)])
+                changed = true
+            }
+            guard changed else { return false }
+            root[Hooks.antigravityName] = mine
+            try write(root.serialized(), agent)
+            return true
+        }
         var hooks = root["hooks"] ?? .object([])
         var changed = false
         for event in agent.events where position(root, agent, event) == nil {
@@ -112,6 +138,11 @@ struct Hooks {
     /// Removes every hook that runs `turnring notify`, leaving the rest of the file as it was.
     func remove(_ agent: Agent) throws {
         if agent == .aider { return try removeAider() }
+        if agent == .antigravity {
+            guard var root = try read(agent), root[Hooks.antigravityName] != nil else { return }
+            root[Hooks.antigravityName] = nil
+            return try write(root.serialized(), agent)
+        }
         guard var root = try read(agent), var hooks = root["hooks"], case .object(let events) = hooks else { return }
         for member in events {
             guard let groups = member.value.array else { continue }
@@ -134,15 +165,25 @@ struct Hooks {
         try write(root.serialized(), agent)
     }
 
+    /// Antigravity keys hooks by name; this is Turnring's.
+    static let antigravityName = "turnring"
+
     func command(_ agent: Agent) -> String {
-        agent == .aider
-            ? "\(binary) notify --source aider --event done"
-            : "\(binary) notify --source \(agent.rawValue) --stdin"
+        let bin = binary.contains(" ") ? "\"\(binary)\"" : binary
+        switch agent {
+        case .aider: return "\(bin) notify --source aider --event done"
+        // Antigravity's payload doesn't name the event, so the command does.
+        case .antigravity: return "\(bin) notify --source antigravity --event done --stdin"
+        default: return "\(bin) notify --source \(agent.rawValue) --stdin"
+        }
     }
 
     private func entry(_ agent: Agent) -> JSON {
         let command = JSON.string(command(agent))
         if agent == .cursor { return .object([.init(key: "command", value: command)]) }
+        if agent == .antigravity {
+            return .object([.init(key: "type", value: .string("command")), .init(key: "command", value: command)])
+        }
         return .object([.init(key: "hooks", value: .array([
             .object([.init(key: "type", value: .string("command")), .init(key: "command", value: command)]),
         ]))])
@@ -150,7 +191,8 @@ struct Hooks {
 
     /// Where Turnring's hook sits for an event: (group index, hook index).
     private func position(_ root: JSON, _ agent: Agent, _ event: String) -> (Int, Int)? {
-        for (g, group) in (root["hooks"]?[event]?.array ?? []).enumerated() {
+        let groups = agent == .antigravity ? root[Hooks.antigravityName]?[event]?.array : root["hooks"]?[event]?.array
+        for (g, group) in (groups ?? []).enumerated() {
             if isTurnring(group) { return (g, 0) }
             if let h = group["hooks"]?.array?.firstIndex(where: isTurnring) { return (g, h) }
         }
@@ -158,7 +200,12 @@ struct Hooks {
     }
 
     private func isTurnring(_ hook: JSON) -> Bool {
-        hook["command"]?.string?.contains("turnring notify") == true
+        Hooks.isTurnringCommand(hook["command"]?.string ?? "")
+    }
+
+    /// Matches `turnring notify`, `/path/turnring notify` and `"C:\…\turnring.exe" notify`.
+    static func isTurnringCommand(_ command: String) -> Bool {
+        command.range(of: #"turnring(\.exe)?"?\s+notify"#, options: .regularExpression) != nil
     }
 
     /// Codex records trusted hooks in config.toml as
@@ -186,7 +233,7 @@ struct Hooks {
     private func installAider() throws -> Bool {
         var lines = aiderLines()
         if lines.contains(where: { $0.hasPrefix("notifications-command:") }) {
-            if lines.contains(where: { $0.hasPrefix("notifications-command:") && $0.contains("turnring notify") }) {
+            if lines.contains(where: { $0.hasPrefix("notifications-command:") && Hooks.isTurnringCommand($0) }) {
                 return false
             }
             throw HookError.occupied(url(.aider).path)
@@ -195,14 +242,15 @@ struct Hooks {
         if !lines.contains(where: { $0.hasPrefix("notifications:") }) {
             lines.append("notifications: true" + Hooks.aiderMark)
         }
-        lines.append("notifications-command: \"\(command(.aider))\"" + Hooks.aiderMark)
+        let quoted = command(.aider).replacingOccurrences(of: "\"", with: "\\\"")
+        lines.append("notifications-command: \"\(quoted)\"" + Hooks.aiderMark)
         try write(Data((lines.joined(separator: "\n") + "\n").utf8), .aider)
         return true
     }
 
     private func removeAider() throws {
         let lines = aiderLines()
-        let kept = lines.filter { !$0.hasSuffix(Hooks.aiderMark) && !$0.contains("turnring notify") }
+        let kept = lines.filter { !$0.hasSuffix(Hooks.aiderMark) && !Hooks.isTurnringCommand($0) }
         guard kept.count != lines.count else { return }
         try write(Data(kept.joined(separator: "\n").utf8), .aider)
     }
@@ -232,6 +280,9 @@ struct Hooks {
     /// Script installs use ~/.local/bin; anything else uses the executable itself.
     static func stableBinaryPath(executable: String = CommandLine.arguments[0],
                                  home: String = NSHomeDirectory()) -> String {
+        #if os(Windows)
+        if executable == CommandLine.arguments[0] { return WindowsDelivery.executablePath() }
+        #endif
         let resolved = URL(fileURLWithPath: executable).resolvingSymlinksInPath().path
         if let range = resolved.range(of: "/Cellar/turnring/") {
             return resolved[..<range.lowerBound] + "/bin/turnring"

@@ -22,11 +22,15 @@ enum Ntfy {
         "turnring-" + UUID().uuidString.lowercased().prefix(13)
     }
 
-    static func send(_ msg: Message) {
-        guard Prefs.ntfyEnabled, let server = URL(string: Prefs.ntfyServer) else { return }
+    /// `completion` runs once every topic has answered (or failed).
+    static func send(_ msg: Message, completion: (() -> Void)? = nil) {
+        guard Prefs.ntfyEnabled, let server = URL(string: Prefs.ntfyServer) else { completion?(); return }
+        let group = DispatchGroup()
         for topic in Prefs.ntfyTopics {
             guard let request = request(for: msg, topic: topic, server: server) else { continue }
+            group.enter()
             URLSession.shared.dataTask(with: request) { _, response, error in
+                defer { group.leave() }
                 if let error {
                     NSLog("turnring: ntfy failed: \(error.localizedDescription)")
                 } else if let http = response as? HTTPURLResponse, http.statusCode >= 300 {
@@ -34,13 +38,14 @@ enum Ntfy {
                 }
             }.resume()
         }
+        group.notify(queue: .global()) { completion?() }
     }
 
     static func request(for msg: Message, topic: String, server: URL) -> URLRequest? {
         let title = msg.fullTitle
-        let priority = msg.event == "waiting" && Prefs.ntfyUrgentWaiting ? 4 : 3
+        let priority = msg.needsAttention && Prefs.ntfyUrgentWaiting ? 4 : 3
         let click = Prefs.ntfyClickRepo ? msg.repo : nil
-        let tags = msg.event == "waiting" ? "hourglass" : msg.event == "done" ? "white_check_mark" : nil
+        let tags = ["waiting": "hourglass", "done": "white_check_mark", "limit": "no_entry", "error": "warning"][msg.event ?? ""]
 
         if Prefs.ntfyAttachReply, let detail = msg.detail {
             // A long reply goes as the request body, which ntfy stores as an attachment.

@@ -1,3 +1,4 @@
+#if !os(Windows)
 import Foundation
 
 /// Listens on the Unix socket. Each connection carries one JSON line and gets one reply line:
@@ -65,3 +66,4 @@ final class SocketServer {
         _ = Posix.writeAll(client, Data((reply + "\n").utf8))
     }
 }
+#endif

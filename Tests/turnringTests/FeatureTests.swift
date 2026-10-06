@@ -3,7 +3,7 @@ import Testing
 @testable import turnring
 
 private func payload(_ json: String) -> HookPayload {
-    try! JSONDecoder().decode(HookPayload.self, from: Data(json.utf8))
+    HookPayload.parse(Data(json.utf8))!
 }
 
 private func tempDir() -> URL {
@@ -30,7 +30,7 @@ private func tempDir() -> URL {
 @Test func longRepliesKeepTheFullTextAsDetail() {
     let long = String(repeating: "word ", count: 100)
     let msg = Message.make(source: "codex", payload: payload(#"{"hook_event_name":"Stop","cwd":"/p","last_assistant_message":"\#(long)"}"#),
-                           title: nil, message: nil, cwd: "/", app: nil)
+                           title: nil, message: nil, cwd: "/", app: nil)!
     #expect(msg.message.count == Message.bodyLimit)
     #expect(msg.detail == long.trimmingCharacters(in: .whitespaces))
     #expect(msg.fullText == msg.detail)
@@ -38,14 +38,14 @@ private func tempDir() -> URL {
 
 @Test func newAgentsMapToDoneAndWaiting() {
     let gemini = Message.make(source: "gemini", payload: payload(#"{"hook_event_name":"AfterAgent","cwd":"/a/g","prompt_response":"Done it"}"#),
-                              title: nil, message: nil, cwd: "/", app: nil)
+                              title: nil, message: nil, cwd: "/", app: nil)!
     #expect(gemini.title == "Done · Gemini CLI")
     #expect(gemini.message == "Done it")
     let cursor = Message.make(source: "cursor", payload: payload(#"{"hook_event_name":"stop","workspace_roots":["/w/site"],"status":"aborted"}"#),
-                              title: nil, message: nil, cwd: "/", app: nil)
+                              title: nil, message: nil, cwd: "/", app: nil)!
     #expect(cursor.title == "Stopped · Cursor")
     #expect(cursor.subtitle == "site")
-    let aider = Message.make(source: "aider", payload: nil, event: "done", title: nil, message: nil, cwd: "/r/app", app: nil)
+    let aider = Message.make(source: "aider", payload: nil, event: "done", title: nil, message: nil, cwd: "/r/app", app: nil)!
     #expect(aider.title == "Done · Aider")
     #expect(aider.subtitle == "app")
     #expect(aider.event == "done")
@@ -96,6 +96,7 @@ private func tempDir() -> URL {
 @Test func geminiUsesAfterAgentAndNotification() throws {
     let home = tempDir()
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
     let hooks = Hooks(home: home, binary: "/bin/turnring")
     try hooks.install(.gemini)
     let json = try JSON.parse(Data(contentsOf: home.appendingPathComponent(".gemini/settings.json")))
@@ -146,6 +147,7 @@ private func tempDir() -> URL {
     let hooks = Hooks(home: home, binary: "/bin/turnring", extraBinaries: [:])
     #expect(hooks.installMissing(skipping: []).isEmpty)
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: home.appendingPathComponent(".gemini/settings.json"))
     try FileManager.default.createDirectory(at: home.appendingPathComponent(".cursor"), withIntermediateDirectories: true)
     #expect(hooks.installMissing(skipping: ["cursor"]) == [.gemini])
     #expect(hooks.status(.cursor) == .off)
@@ -195,6 +197,7 @@ private func tempDir() -> URL {
     #expect(Ntfy.encodedHeader("Done · Codex") == "=?UTF-8?B?\(Data("Done · Codex".utf8).base64EncodedString())?=")
 }
 
+#if !os(Windows)
 @Test func httpEndpointNeedsTheTokenAndJSON() {
     var received: Message?
     let server = HTTPServer(port: 0, token: "t0k") { msg in received = msg; return "ok" }
@@ -208,11 +211,93 @@ private func tempDir() -> URL {
     #expect(received?.title == "Build done")
     #expect(received?.event == "done")
 }
+#endif
 
+#if !os(Windows)
 @Test func versionsCompareNumerically() {
     #expect(Updates.isNewer("0.10.0", than: "0.9.1"))
     #expect(!Updates.isNewer("0.4.0", than: "0.4.0"))
     #expect(Updates.isNewer("1.0", than: "0.99.9"))
     #expect(Updates.installCommand(executable: "/opt/homebrew/Cellar/turnring/0.4.0/Turnring.app/Contents/MacOS/turnring")
         .hasPrefix("/opt/homebrew/bin/brew update"))
+}
+#endif
+
+// MARK: Antigravity, Grok Build and attention alerts
+
+@Test func antigravityGetsANamedHookNextToGemini() throws {
+    let home = tempDir()
+    try FileManager.default.createDirectory(at: home.appendingPathComponent(".gemini/antigravity"), withIntermediateDirectories: true)
+    let hooks = Hooks(home: home, binary: "/bin/turnring", extraBinaries: [:])
+    #expect(hooks.status(.gemini) == .notInstalled)
+    #expect(hooks.status(.antigravity) == .off)
+    try hooks.install(.antigravity)
+    #expect(hooks.status(.antigravity) == .on)
+    let json = try JSON.parse(Data(contentsOf: home.appendingPathComponent(".gemini/config/hooks.json")))
+    #expect(json["turnring"]?["Stop"]?.array?.first?["command"]?.string
+        == "/bin/turnring notify --source antigravity --event done --stdin")
+    try hooks.remove(.antigravity)
+    #expect(hooks.status(.antigravity) == .off)
+}
+
+@Test func grokGetsItsOwnHooksFile() throws {
+    let home = tempDir()
+    try FileManager.default.createDirectory(at: home.appendingPathComponent(".grok"), withIntermediateDirectories: true)
+    let hooks = Hooks(home: home, binary: "/bin/turnring", extraBinaries: [:])
+    try hooks.install(.grok)
+    #expect(hooks.status(.grok) == .on)
+    let json = try JSON.parse(Data(contentsOf: home.appendingPathComponent(".grok/hooks/turnring.json")))
+    #expect(json["hooks"]?.keys == ["Stop", "Notification", "StopFailure"])
+}
+
+@Test func claudeCodeGainsTheLimitsHookOnUpgrade() throws {
+    let home = tempDir()
+    let file = home.appendingPathComponent(".claude/settings.json")
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let old = "/bin/turnring notify --source claude-code --stdin"
+    try Data(#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"\#(old)"}]}],"Notification":[{"hooks":[{"type":"command","command":"\#(old)"}]}]}}"#.utf8).write(to: file)
+    let hooks = Hooks(home: home, binary: "/bin/turnring", extraBinaries: [:])
+    #expect(hooks.status(.claudeCode) == .off)
+    #expect(hooks.installMissing(skipping: []) == [.claudeCode])
+    #expect(try JSON.parse(Data(contentsOf: file))["hooks"]?.keys == ["Stop", "Notification", "StopFailure"])
+}
+
+@Test func commandsWithSpacesAreQuotedAndStillRecognized() {
+    let hooks = Hooks(home: tempDir(), binary: #"C:\Users\Ada Lovelace\AppData\Local\Turnring\turnring.exe"#)
+    let command = hooks.command(.claudeCode)
+    #expect(command.hasPrefix("\""))
+    #expect(Hooks.isTurnringCommand(command))
+    #expect(Hooks.isTurnringCommand("/opt/homebrew/bin/turnring notify --source codex --stdin"))
+    #expect(!Hooks.isTurnringCommand("say turnring is great"))
+}
+
+@Test func attentionEventsGetTheirOwnTitles() {
+    func make(_ source: String, _ json: String) -> Message? {
+        Message.make(source: source, payload: payload(json), title: nil, message: nil, cwd: "/", app: nil)
+    }
+    let limit = make("claude-code", #"{"hook_event_name":"StopFailure","cwd":"/p/api","error":"Rate limited","error_type":"rate_limit"}"#)!
+    #expect(limit.title == "Limit hit · Claude Code")
+    #expect(limit.event == "limit")
+    #expect(limit.needsAttention)
+    let failure = make("claude-code", #"{"hook_event_name":"StopFailure","error":"Server error","error_type":"server_error"}"#)!
+    #expect(failure.title == "Error · Claude Code")
+    let approve = make("claude-code", #"{"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash"}"#)!
+    #expect(approve.title == "Approve · Claude Code")
+    let plan = make("claude-code", #"{"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude wants to exit plan mode and start on the plan"}"#)!
+    #expect(plan.title == "Plan ready · Claude Code")
+    let quota = make("claude-code", #"{"hook_event_name":"Notification","notification_type":"quota_auto_resume_disabled","message":"Usage limit reached"}"#)!
+    #expect(quota.event == "limit")
+    #expect(make("claude-code", #"{"hook_event_name":"Notification","notification_type":"auth_success"}"#) == nil)
+    let codexCommand = make("codex", #"{"hook_event_name":"PermissionRequest","tool_name":"shell","tool_input":{"command":["npm","test"]}}"#)!
+    #expect(codexCommand.title == "Approve · Codex")
+    #expect(codexCommand.message == "Run: npm test")
+    let codexPlan = make("codex", #"{"hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode"}"#)!
+    #expect(codexPlan.title == "Plan ready · Codex")
+    let grok = make("grok", #"{"hookEventName":"StopFailure","workspaceRoot":"/w/bot","error":"Usage limit exceeded"}"#)!
+    #expect(grok.title == "Limit hit · Grok Build")
+    #expect(grok.subtitle == "bot")
+    let agy = Message.make(source: "antigravity", payload: payload(#"{"terminationReason":"max_steps_exceeded","workspacePaths":["/w/app"]}"#),
+                           event: "done", title: nil, message: nil, cwd: "/", app: nil)!
+    #expect(agy.title == "Limit hit · Antigravity")
+    #expect(agy.subtitle == "app")
 }

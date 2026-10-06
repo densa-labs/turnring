@@ -1,3 +1,4 @@
+#if !os(Windows)
 import Foundation
 #if canImport(Glibc)
 import Glibc
@@ -93,8 +94,9 @@ final class HTTPServer {
         guard let body = try? JSONDecoder().decode(Body.self, from: request[headerEnd.upperBound...]) else {
             return ("400 Bad Request", "error body must be JSON")
         }
-        let msg = Message.make(source: body.source, payload: nil, event: body.event, title: body.title,
-                               message: body.message, cwd: body.cwd ?? NSHomeDirectory(), app: nil)
+        guard let msg = Message.make(source: body.source, payload: nil, event: body.event, title: body.title,
+                                     message: body.message, cwd: body.cwd ?? NSHomeDirectory(), app: nil)
+        else { return ("200 OK", "skipped") }
         return ("200 OK", handle(msg))
     }
 
@@ -108,3 +110,4 @@ final class HTTPServer {
         return nil
     }
 }
+#endif

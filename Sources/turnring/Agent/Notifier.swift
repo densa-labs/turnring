@@ -121,7 +121,7 @@ enum Sounds {
     }
 
     static func name(for event: String?) -> String {
-        event == "waiting" ? Prefs.waitingSound : Prefs.doneSound
+        event == "done" || event == nil ? Prefs.doneSound : Prefs.waitingSound
     }
 
     /// Notifications can only play sounds from ~/Library/Sounds or the app bundle, so a

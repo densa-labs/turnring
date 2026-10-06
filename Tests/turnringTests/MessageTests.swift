@@ -3,13 +3,13 @@ import Testing
 @testable import turnring
 
 private func payload(_ json: String) -> HookPayload {
-    try! JSONDecoder().decode(HookPayload.self, from: Data(json.utf8))
+    HookPayload.parse(Data(json.utf8))!
 }
 
 @Test func stopMapsToDone() {
     let msg = Message.make(source: "claude-code",
                            payload: payload(#"{"hook_event_name":"Stop","cwd":"/Users/me/src/turnring","last_assistant_message":"All green."}"#),
-                           title: nil, message: nil, cwd: "/tmp", app: "com.apple.Terminal")
+                           title: nil, message: nil, cwd: "/tmp", app: "com.apple.Terminal")!
     #expect(msg.title == "Done · Claude Code")
     #expect(msg.subtitle == "turnring")
     #expect(msg.fullTitle == "Done · Claude Code · turnring")
@@ -22,34 +22,34 @@ private func payload(_ json: String) -> HookPayload {
 @Test func notificationAndPermissionRequestMapToWaiting() {
     let claude = Message.make(source: "claude-code",
                               payload: payload(#"{"hook_event_name":"Notification","cwd":"/a/b","message":"Claude needs your permission"}"#),
-                              title: nil, message: nil, cwd: "/tmp", app: nil)
+                              title: nil, message: nil, cwd: "/tmp", app: nil)!
     #expect(claude.title == "Waiting · Claude Code")
     #expect(claude.subtitle == "b")
     #expect(claude.message == "Claude needs your permission")
     let codex = Message.make(source: "codex", payload: payload(#"{"hook_event_name":"PermissionRequest","cwd":"/a/c"}"#),
-                             title: nil, message: nil, cwd: "/tmp", app: nil)
-    #expect(codex.title == "Waiting · Codex")
+                             title: nil, message: nil, cwd: "/tmp", app: nil)!
+    #expect(codex.title == "Approve · Codex")
     #expect(codex.subtitle == "c")
     let other = Message.make(source: "goose", payload: payload(#"{"hook_event_name":"Stop","cwd":"/a/d"}"#),
-                             title: nil, message: nil, cwd: "/tmp", app: nil)
+                             title: nil, message: nil, cwd: "/tmp", app: nil)!
     #expect(other.title == "Done · d")
     #expect(other.subtitle == nil)
 }
 
 @Test func flagsOverridePayloadAndCwdFallsBack() {
     let msg = Message.make(source: nil, payload: payload(#"{"hook_event_name":"Stop"}"#),
-                           title: "Custom", message: "Body", cwd: "/x/project", app: nil)
+                           title: "Custom", message: "Body", cwd: "/x/project", app: nil)!
     #expect(msg.title == "Custom")
     #expect(msg.subtitle == nil)
     #expect(msg.message == "Body")
     #expect(msg.cwd == "/x/project")
-    let bare = Message.make(source: nil, payload: nil, title: nil, message: nil, cwd: "/x/project", app: nil)
+    let bare = Message.make(source: nil, payload: nil, title: nil, message: nil, cwd: "/x/project", app: nil)!
     #expect(bare.title == "Turnring")
 }
 
 @Test func longBodiesAreCut() {
     let long = String(repeating: "a", count: 500)
-    let msg = Message.make(source: nil, payload: nil, title: "t", message: long, cwd: "/", app: nil)
+    let msg = Message.make(source: nil, payload: nil, title: "t", message: long, cwd: "/", app: nil)!
     #expect(msg.message.count == Message.bodyLimit)
     #expect(msg.message.hasSuffix("…"))
 }
@@ -60,10 +60,13 @@ private func payload(_ json: String) -> HookPayload {
     #expect(Message.captureApp(env: ["TERM_PROGRAM": "unknown"]) == nil)
 }
 
+#if !os(Windows)
 @Test func sendGivesUpWhenNoAgentIsListening() {
     #expect(NotifyCommand.send(Data("{}\n".utf8), to: "/tmp/turnring-test-missing.sock", timeoutMs: 100) == nil)
 }
+#endif
 
+#if !os(Windows)
 @Test func socketRoundTrip() throws {
     let path = NSTemporaryDirectory() + "turnring-test-\(getpid()).sock"
     var received: Message?
@@ -76,3 +79,4 @@ private func payload(_ json: String) -> HookPayload {
     #expect(received == msg)
     #expect(NotifyCommand.send(Data("not json\n".utf8), to: path, timeoutMs: 500) == "error bad message")
 }
+#endif

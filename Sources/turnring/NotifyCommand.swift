@@ -26,16 +26,23 @@ enum NotifyCommand {
         var payload: HookPayload?
         if readStdin {
             let data = FileHandle.standardInput.readDataToEndOfFile()
-            payload = try? JSONDecoder().decode(HookPayload.self, from: data)
+            payload = HookPayload.parse(data)
             if payload == nil, !data.isEmpty { warn("stdin is not a hook payload; using flags only") }
         }
 
         let env = ProcessInfo.processInfo.environment
-        let cwd = payload?.cwd ?? payload?.workspace_roots?.first ?? FileManager.default.currentDirectoryPath
-        let msg = Message.make(source: source, payload: payload, event: event, title: title, message: message,
-                               cwd: FileManager.default.currentDirectoryPath,
-                               app: Message.captureApp(env: env), tty: Message.captureTTY(),
-                               repo: Ntfy.repoURL(for: cwd))
+        // Grok Build also runs the hooks it finds in Claude Code's and Cursor's settings.
+        // Only its own hook speaks for it, so those copies would be duplicates.
+        if env["GROK_HOOK_EVENT"] != nil, source != "grok" { return }
+        let cwd = payload?.cwd ?? FileManager.default.currentDirectoryPath
+        guard let msg = Message.make(source: source, payload: payload, event: event, title: title, message: message,
+                                     cwd: FileManager.default.currentDirectoryPath,
+                                     app: Message.captureApp(env: env), tty: Message.captureTTY(),
+                                     repo: Ntfy.repoURL(for: cwd)) else { return }
+        #if os(Windows)
+        // There is no menu bar agent on Windows: show the toast and push from here.
+        WindowsDelivery.deliver(msg)
+        #else
         guard var line = try? JSONEncoder().encode(msg) else { return }
         line.append(0x0A)
 
@@ -44,8 +51,10 @@ enum NotifyCommand {
         case .some(let reply): warn("agent replied: \(reply)")
         case .none: warn("Turnring is not running (start it with `brew services start turnring` or open Turnring.app)")
         }
+        #endif
     }
 
+    #if !os(Windows)
     /// Writes one line and returns the agent's one-line reply, or nil if it can't be reached in time.
     static func send(_ line: Data, to path: String, timeoutMs: Int) -> String? {
         let fd = Posix.streamSocket(AF_UNIX)
@@ -67,8 +76,10 @@ enum NotifyCommand {
         guard n > 0 else { return nil }
         return String(decoding: buf[0..<n], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
+    #endif
 }
 
+#if !os(Windows)
 func unixAddress(_ path: String) -> sockaddr_un? {
     var addr = sockaddr_un()
     addr.sun_family = sa_family_t(AF_UNIX)
@@ -80,6 +91,8 @@ func unixAddress(_ path: String) -> sockaddr_un? {
     }
     return addr
 }
+
+#endif
 
 func warn(_ text: String) {
     FileHandle.standardError.write(Data("turnring: \(text)\n".utf8))
