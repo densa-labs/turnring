@@ -17,11 +17,7 @@ class Turnring < Formula
   end
 
   def caveats
-    <<~EOS
-      Start Turnring now and at login:
-        brew services start turnring
-      Then allow notifications for Turnring when macOS asks.
-    EOS
+    "Allow notifications for Turnring when macOS asks after `brew services start turnring`."
   end
 
   service do
