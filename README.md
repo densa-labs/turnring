@@ -13,6 +13,7 @@ Works with Claude Code and Codex (CLI and app). Needs macOS 14 or later.
 
 ```sh
 brew tap densa-labs/turnring https://github.com/densa-labs/turnring
+brew trust densa-labs/turnring   # Homebrew asks you to trust third-party taps
 brew install turnring
 brew services start turnring
 ```
