@@ -29,5 +29,7 @@ jobs:
         with:
           branch: swift-6.1-release
           tag: 6.1-RELEASE
+      # Build only: SwiftPM on Windows can't link tests against an executable target.
+      # The shared code is tested on macOS and Linux.
       - run: swift build -c release
-      - run: swift test
+      - run: .build/release/turnring.exe version
