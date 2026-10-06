@@ -14,6 +14,8 @@ bundle: build
 	mkdir -p $(APP)/Contents/MacOS
 	cp .build/release/turnring $(APP)/Contents/MacOS/turnring
 	cp Resources/Info.plist $(APP)/Contents/Info.plist
+	mkdir -p $(APP)/Contents/Resources
+	cp Resources/AppIcon.icns Resources/icon/MenuBar.svg Resources/icon/MenuBarPaused.svg $(APP)/Contents/Resources/
 	codesign --force --sign - $(APP)
 
 # Run from ~/Applications: usernoted rejects bundles in temporary folders.

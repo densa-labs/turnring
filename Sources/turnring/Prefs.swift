@@ -28,6 +28,11 @@ enum Prefs {
     }
     static var isPaused: Bool { (pausedUntil ?? .distantPast) > Date() }
 
+    static var onboarded: Bool {
+        get { defaults.bool(forKey: "onboarded") }
+        set { defaults.set(newValue, forKey: "onboarded") }
+    }
+
     static var ntfyServer: String {
         get { defaults.string(forKey: "ntfyServer") ?? "https://ntfy.sh" }
         set { defaults.set(newValue, forKey: "ntfyServer") }

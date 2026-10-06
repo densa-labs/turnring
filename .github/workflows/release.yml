@@ -21,6 +21,8 @@ jobs:
           mkdir -p "$APP/Contents/MacOS"
           cp .build/apple/Products/Release/turnring "$APP/Contents/MacOS/turnring"
           cp Resources/Info.plist "$APP/Contents/Info.plist"
+          mkdir -p "$APP/Contents/Resources"
+          cp Resources/AppIcon.icns Resources/icon/MenuBar.svg Resources/icon/MenuBarPaused.svg "$APP/Contents/Resources/"
           codesign --force --sign - "$APP"
       - name: Zip and publish
         env:
