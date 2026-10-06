@@ -1,47 +1,166 @@
 # Turnring
 
-A small menu bar app that tells you when a coding agent finishes its turn or
-needs you. A hook runs `turnring notify`, you get a native notification (and,
-if you like, a push to your phone through [ntfy](https://ntfy.sh)), and clicking
-it takes you back to the agent: the exact Terminal or iTerm2 tab, the project's
-editor window, or the agent's app.
+Turnring tells you when your AI coding agent is done or needs you, so you can
+stop watching the terminal. You get a notification on your Mac (and on your
+phone, if you want), and clicking it takes you straight back to the agent.
 
-Works with Claude Code, Codex (CLI and app), Cursor, Gemini CLI, Antigravity,
-Grok Build and Aider. Needs macOS 14 or later. Simple Linux and Windows builds
-are available too.
+Works with **Claude Code, Codex, Cursor, Gemini CLI, Antigravity, Grok Build
+and Aider**. Made for macOS 14 or later; simple Windows and Linux versions too.
 
-## Install
+## Install on a Mac
 
-### Homebrew (builds from source)
+It takes about a minute, and you don't need any developer tools.
+
+1. **Open Terminal.** Press <kbd>⌘ Command</kbd> + <kbd>Space</kbd>, type
+   `Terminal`, and press <kbd>Return</kbd>.
+2. **Copy this line, paste it into Terminal, and press <kbd>Return</kbd>:**
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh | sh
+   ```
+
+3. **Click Allow** when macOS asks whether Turnring can send notifications.
+
+That's it. A small ring icon appears in your menu bar (top right of the
+screen), and Turnring connects itself to every coding agent it finds. It also
+starts by itself when you log in.
+
+**Using Codex?** The next time you start Codex, it asks whether to trust a new
+hook. Choose **Trust**, or Codex can't tell Turnring when it's done.
+
+**Check that it works:** click the ring icon and choose **Send Test
+Notification**.
+
+<details>
+<summary>Prefer Homebrew?</summary>
 
 ```sh
 brew tap densa-labs/turnring https://github.com/densa-labs/turnring
-brew trust densa-labs/turnring   # Homebrew asks you to trust third-party taps
+brew trust densa-labs/turnring
 brew install turnring
 brew services start turnring
 ```
 
-This needs a Swift toolchain; the Xcode Command Line Tools are enough
-(`xcode-select --install`). `brew services` also starts Turnring at login.
+Homebrew builds Turnring from source, which needs Apple's Command Line Tools
+(`xcode-select --install`).
+</details>
 
-### Install script (prebuilt)
+## Get alerts on your phone (optional)
+
+1. Install the free **ntfy** app:
+   [iPhone](https://apps.apple.com/app/ntfy/id1625396347) or
+   [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy).
+2. On your Mac, click the ring icon → **Preferences…** → **Phone** →
+   **Set Up with ntfy**. Turnring copies a private code (your "topic").
+3. In the ntfy app, tap **+**, paste the code, and tap **Subscribe**.
+
+Keep the code to yourself: anyone who has it can read your alerts.
+
+## What the notifications say
+
+| You'll see | It means |
+|---|---|
+| **Done** · Claude Code | The agent finished. The notification shows its reply. |
+| **Approve** · Codex | The agent wants to run a command, like "Run: npm test". |
+| **Plan ready** · Claude Code | The agent made a plan and wants your OK. |
+| **Question** · Claude Code | The agent asked you something. |
+| **Waiting** · Gemini CLI | The agent is waiting for you. |
+| **Limit hit** · Claude Code | You hit a usage or rate limit. |
+| **Error** · Grok Build | Something went wrong. |
+
+The project folder name appears under the title. **Click a notification** to go
+back to the agent; for Terminal and iTerm2 it opens the exact tab (macOS asks
+once for permission). Each notification also has **Copy Reply** and **Mute
+Project for 1 Hour** buttons.
+
+Turnring stays quiet while you're already looking at the agent.
+
+## The menu
+
+Click the ring icon in the menu bar:
+
+- **Pause**: no notifications for 15 minutes, an hour, or until you resume.
+- **Recent**: your last few notifications. **Show All History…** searches all
+  of them.
+- **Play Sound** and **Send to Phone**: quick on/off switches.
+- **Send Test Notification**: checks that everything works.
+- **Preferences…**: everything else, in tabs:
+  - **General**: sounds, start at login, staying quiet while you watch, updates.
+  - **Agents**: turn Turnring on or off for each agent.
+  - **Phone**: phone alerts.
+  - **Rules**: for example, "send Waiting alerts from my `prod` project to my
+    phone only" or "mute Aider".
+  - **Advanced**: a local web address other tools can send alerts to.
+
+Turnring checks for updates once a day and shows a notification with an
+**Update** button when there's a new version.
+
+## Windows
+
+1. Download `turnring-…-windows-x86_64.zip` from the
+   [latest release](https://github.com/densa-labs/turnring/releases/latest).
+2. Right-click the zip → **Extract All…**, and put it somewhere it can stay,
+   like `C:\Users\<you>\AppData\Local\Turnring`.
+3. Open that folder, click the address bar, type `powershell`, and press
+   <kbd>Enter</kbd>. In the window that opens, run:
+
+   ```powershell
+   .\turnring.exe setup
+   ```
+
+Windows notifications now appear when your agents finish or need you. For
+phone alerts, also run `.\turnring.exe ntfy` and subscribe to the code it
+prints (see [phone alerts](#get-alerts-on-your-phone-optional)). The Windows
+version has no tray icon, and clicking a notification doesn't open the agent
+yet.
+
+## Linux
+
+Run the same line as on a Mac:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh | sh
 ```
 
-On macOS it installs `~/Applications/Turnring.app`, links `~/.local/bin/turnring`,
-and opens Turnring, which turns on launch at login the first time it runs. On
-Linux it installs `~/.local/bin/turnring` and a systemd user service.
+It installs Turnring as a background service. Notifications use `notify-send`,
+so install `libnotify-bin` (or your distribution's equivalent) if you don't
+have it. There's no menu: use `turnring ntfy` for phone alerts and
+`turnring history` to see past notifications.
 
-The first time Turnring runs, it posts a banner saying what it set up, and macOS
-asks whether it may send notifications. Choose **Allow**. If you missed it, turn
-Turnring on in **System Settings → Notifications**.
+## Uninstall
 
-## Hook it up
+Paste the line for how you installed it:
 
-Turnring adds its hooks to every agent it finds, when it first runs and again
-whenever you install another agent later:
+```sh
+curl -fsSL https://raw.githubusercontent.com/densa-labs/turnring/main/install.sh | sh -s -- --uninstall
+```
+
+```sh
+turnring setup --remove && brew services stop turnring && brew uninstall turnring   # Homebrew
+```
+
+Both take Turnring's hooks back out of your agents' settings first.
+
+## Something not working?
+
+- **No notifications?** Open **System Settings → Notifications → Turnring** and
+  turn on **Allow notifications**. The Turnring menu also warns you when
+  they're off.
+- **Nothing from Codex?** Start Codex and choose **Trust** when it asks about
+  the new hook. Turnring's menu reminds you until you do.
+- **Nothing from an agent you installed after Turnring?** Turnring checks for
+  new agents every hour. To connect it now, open **Preferences → Agents** and
+  switch it on.
+- **"Turnring can't be opened" or "Apple could not verify…"?** That only
+  happens if you downloaded the zip in a browser. Use the Terminal line above
+  instead, or open **System Settings → Privacy & Security** and click
+  **Open Anyway**. (Turnring isn't notarized by Apple, which needs a paid
+  developer account.)
+
+## For developers
+
+<details>
+<summary>Where Turnring hooks in</summary>
 
 | Agent | File | Events |
 |---|---|---|
@@ -53,184 +172,49 @@ whenever you install another agent later:
 | Grok Build | `~/.grok/hooks/turnring.json` | `Stop`, `Notification`, `StopFailure` |
 | Aider | `~/.aider.conf.yml` | `notifications-command` |
 
-Grok Build also runs hooks it finds in Claude Code's and Cursor's settings;
+Turnring backs up each file once as `*.turnring-backup` and keeps your other
+settings, hooks and key order. It leaves a file alone if it isn't plain JSON
+(for example, if it has comments) or if Aider already runs another
+`notifications-command`. Grok Build also runs Claude Code's and Cursor's hooks;
 Turnring ignores those copies so Grok turns aren't announced twice.
 
-It backs up each file once as `*.turnring-backup`, keeps your other settings,
-hooks and key order as they were, and leaves a file alone if it isn't plain JSON
-(for example, if it has comments) or if Aider already runs another
-`notifications-command`.
+Claude Code and Grok Build report limits and errors. Codex and Gemini CLI report
+approvals but have no limit event. Antigravity reports done, step limits and
+errors. Cursor reports done, stopped and errors. Aider reports done.
+</details>
 
-**Codex asks you to trust new hooks** the next time it starts. Choose to trust
-the Turnring hook, or Codex won't run it. Until then the menu shows a reminder. Claude Code, Cursor and Gemini CLI pick the hooks up in new
-sessions.
-
-Turn hooks on or off per agent in **Preferences → Agents** or from a terminal. An agent you turn off stays off.
+<details>
+<summary>Command line</summary>
 
 ```sh
-turnring setup            # add hooks for every installed agent
-turnring setup --remove   # take them out again
-```
-
-### Anything else
-
-```sh
+turnring setup [--remove]          # add or remove hooks for every installed agent
 turnring notify --title "Build finished" --message "All green"
-turnring notify --source my-tool --event done      # "Done · <project>"
+turnring notify --source my-tool --event done|waiting|limit|error [--stdin]
+turnring ntfy [topic] [--server URL] | add <topic> | remove <topic> | list | off
+turnring history [search]
+turnring http on [--port N] | off | status
+turnring version
 ```
 
 `turnring notify` never fails a hook: it always exits 0, gives up after 500 ms,
 and prints one line to stderr if Turnring isn't running.
 
-Tools that can only make HTTP requests can use the local endpoint. Turn it on
-in **Preferences → Advanced** (which also shows the token) or with `turnring http on`:
+The local HTTP endpoint (off by default, 127.0.0.1 only) takes the same message
+as JSON:
 
 ```sh
 curl -X POST http://127.0.0.1:7391/notify -H "Authorization: Bearer <token>" \
   -d '{"title": "Deploy finished", "message": "v2 is live", "event": "done"}'
 ```
 
-It listens on 127.0.0.1 only.
+Phone pushes for approvals, plans, limits and errors go out at high priority.
+Tapping a push opens the project's GitHub or GitLab page, and replies too long
+for a notification come along as a `reply.txt` attachment. Each of these can be
+switched off in **Preferences → Phone**.
+</details>
 
-## Notifications
-
-Banners are titled by what happened and which agent, with the project folder
-underneath and the agent's app icon on the side:
-
-| Title | When |
-|---|---|
-| Done · Claude Code | A turn finished (the reply is shown as plain text, Markdown stripped) |
-| Approve · Codex | The agent wants to run a command or use a tool ("Run: npm test") |
-| Plan ready · Claude Code | A plan is waiting for your approval |
-| Question · Claude Code | The agent asked you something |
-| Waiting · Gemini CLI | The agent is waiting for input |
-| Limit hit · Claude Code | A rate, usage or step limit stopped the turn |
-| Error · Grok Build | The turn ended with an error |
-| Stopped · Cursor | The turn was cancelled |
-
-What each agent reports: Claude Code and Grok Build send all of these. Codex and
-Gemini CLI send approvals but have no limit event. Antigravity sends done, step
-limits and errors. Cursor sends done, stopped and errors. Aider sends done.
-
-- **Click** a banner to go back. For Terminal and iTerm2, Turnring selects the
-  exact tab the agent runs in; macOS asks once for permission to control that
-  app. VS Code, Cursor and Windsurf open the project's window. Other apps come
-  to the front.
-- **Copy Reply** copies the agent's whole reply. **Mute Project for 1 Hour**
-  silences that folder.
-- Turnring stays quiet while you're already looking at the agent (its app is in
-  front and, for Terminal and iTerm2, its tab is selected). Turn this off in
-  **Preferences → General**.
-- Pick one sound for "Done" and another for anything that needs you (approvals,
-  plans, questions, limits, errors) in **Preferences → General**.
-
-## Menu
-
-The menu bar menu keeps the everyday things:
-
-- **Pause** for 15 minutes, 1 hour, or until resumed. Pausing silences ntfy too,
-  and the menu bar icon gets a slash.
-- **Recent** lists the last 5 notifications; click one to go back.
-  **Show All History…** (⌘Y) searches everything Turnring has shown, across
-  restarts. `turnring history [search]` does the same in a terminal.
-- **Play Sound** and **Send to Phone** switches.
-- **Send Test Notification** checks that banners get through. If notifications
-  are off, the menu says so and links to System Settings.
-
-**Preferences…** (⌘,) opens a window with a tab for each area:
-
-- **General**: sounds for "Done" and "Waiting", launch at login, staying quiet
-  while you watch the agent, exact-tab focus, and update checks.
-- **Agents**: each agent's hooks, and whether Codex still needs you to trust them.
-- **Phone**: ntfy setup, server, topics, priority, tap-to-open and attachments.
-- **Rules**: per-agent and per-project routing.
-- **Advanced**: the local HTTP endpoint.
-
-## Rules
-
-In **Preferences → Rules**, route messages by agent, project and event. The first
-rule that matches wins: banner and phone, banner only, phone only, or mute. For
-example, send "Waiting" from any project containing `prod` to your phone only,
-or mute Aider entirely.
-
-## Phone notifications (ntfy)
-
-Choose **Preferences → Phone → Set Up with ntfy**. Turnring creates
-a private random topic and copies it; subscribe to it in the free
-[ntfy app](https://ntfy.sh). From a terminal:
-
-```sh
-turnring ntfy                      # turn on with a random topic on ntfy.sh
-turnring ntfy my-topic             # or pick a topic
-turnring ntfy add team-topic       # send to more than one topic
-turnring ntfy remove team-topic
-turnring ntfy list
-turnring ntfy my-topic --server https://ntfy.example.com
-turnring ntfy off
-```
-
-Approvals, plans, limits and errors go out at high priority. Tapping a push opens the project's
-repository page when it has a GitHub or GitLab `origin`. Replies too long for a
-banner come along as a `reply.txt` attachment. Each of these can be turned off
-in **Preferences → Phone**.
-
-Anyone who knows a topic on the public ntfy.sh server can read it, so prefer the
-random one.
-
-## Updates
-
-Turnring checks GitHub once a day and posts a banner when a new version is out.
-Choose **Update** on the banner (or in the menu) to install it with Homebrew or
-the install script, whichever you used. Turn the check off in
-**Preferences → General**.
-
-## Linux
-
-The Linux build has no menu bar. It runs as a systemd user service, shows
-banners with `notify-send` (install `libnotify-bin` or your distribution's
-equivalent), and supports hooks, ntfy, rules, history and the HTTP endpoint.
-Use `turnring setup`, `turnring ntfy`, `turnring http` and `turnring history`
-instead of the menu. Rules can only be edited in the macOS settings window for
-now. Install it with the script above, or build it:
-
-```sh
-swift build -c release
-cp .build/release/turnring ~/.local/bin/
-```
-
-## Windows
-
-The Windows build is a single `turnring.exe` with no tray icon. Each
-`turnring notify` shows a Windows toast and sends the ntfy push itself, and it
-honors pause, rules and history like the other builds. Download
-`turnring-<version>-windows-x86_64.zip` from the latest release, unzip it
-somewhere such as `%LOCALAPPDATA%\Turnring`, then run:
-
-```powershell
-.\turnring.exe setup        # add hooks for the agents it finds
-.\turnring.exe ntfy         # optional: phone pushes
-```
-
-Hooks call `turnring.exe` by its full path, so it doesn't need to be on `PATH`.
-Clicking a toast doesn't jump back to the agent yet.
-
-## Uninstall
-
-Remove the hooks first, then the app:
-
-```sh
-turnring setup --remove
-brew services stop turnring && brew uninstall turnring   # Homebrew
-sh install.sh --uninstall                                 # install script
-```
-
-## Downloaded the zip by hand?
-
-A zip downloaded in a browser is quarantined. Open Turnring once, then go to
-**System Settings → Privacy & Security** and click **Open Anyway**. Homebrew and
-the install script avoid this. (Turnring is ad-hoc signed, not notarized.)
-
-## Build
+<details>
+<summary>Build from source</summary>
 
 ```sh
 make test   # unit tests
@@ -238,5 +222,6 @@ make run    # build, bundle, ad-hoc sign, and open ~/Applications/Turnring.app
 ```
 
 Notifications need a bundle ID, so the plain SwiftPM binary is wrapped in a
-minimal `Turnring.app`. macOS ignores bundles in temporary folders, so run it
-from `~/Applications` (or wherever Homebrew puts it), not from `build/`.
+minimal `Turnring.app`. macOS ignores app bundles in temporary folders, so run
+it from `~/Applications` (or wherever Homebrew puts it), not from `build/`.
+</details>
