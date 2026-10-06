@@ -116,7 +116,9 @@ extension Message {
                 : ("error", "Error", p?.error ?? "The turn ended with an error.")
         case "PermissionRequest":
             if p?.toolName == "ExitPlanMode" { return ("waiting", "Plan ready", "Review and approve the plan.") }
-            let body = p?.toolCommand.map { "Run: \($0)" } ?? p?.toolName.map { "Allow \($0)?" } ?? p?.message ?? ""
+            var body = p?.message ?? ""
+            if let tool = p?.toolName { body = "Allow \(tool)?" }
+            if let command = p?.toolCommand { body = "Run: \(command)" }
             return ("waiting", "Approve", body)
         case "Notification", "waiting":
             let type = (p?.notificationType ?? "").lowercased()
