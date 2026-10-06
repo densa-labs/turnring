@@ -6,8 +6,9 @@ if you like, a push to your phone through [ntfy](https://ntfy.sh)), and clicking
 it takes you back to the agent: the exact Terminal or iTerm2 tab, the project's
 editor window, or the agent's app.
 
-Works with Claude Code, Codex (CLI and app), Cursor, Gemini CLI and Aider.
-Needs macOS 14 or later. A headless Linux build is available too.
+Works with Claude Code, Codex (CLI and app), Cursor, Gemini CLI, Antigravity,
+Grok Build and Aider. Needs macOS 14 or later. Simple Linux and Windows builds
+are available too.
 
 ## Install
 
@@ -44,11 +45,16 @@ whenever you install another agent later:
 
 | Agent | File | Events |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` | `Stop`, `Notification` |
+| Claude Code | `~/.claude/settings.json` | `Stop`, `Notification`, `StopFailure` |
 | Codex (CLI and app) | `~/.codex/hooks.json` | `Stop`, `PermissionRequest` |
 | Cursor | `~/.cursor/hooks.json` | `stop` |
 | Gemini CLI | `~/.gemini/settings.json` | `AfterAgent`, `Notification` |
+| Antigravity (IDE and CLI) | `~/.gemini/config/hooks.json` | `Stop` |
+| Grok Build | `~/.grok/hooks/turnring.json` | `Stop`, `Notification`, `StopFailure` |
 | Aider | `~/.aider.conf.yml` | `notifications-command` |
+
+Grok Build also runs hooks it finds in Claude Code's and Cursor's settings;
+Turnring ignores those copies so Grok turns aren't announced twice.
 
 It backs up each file once as `*.turnring-backup`, keeps your other settings,
 hooks and key order as they were, and leaves a file alone if it isn't plain JSON
@@ -88,9 +94,23 @@ It listens on 127.0.0.1 only.
 
 ## Notifications
 
-Banners are titled by agent, such as "Done · Claude Code" or "Waiting · Codex",
-with the project folder underneath and the agent's app icon on the side. The
-reply is shown as plain text (Markdown is stripped).
+Banners are titled by what happened and which agent, with the project folder
+underneath and the agent's app icon on the side:
+
+| Title | When |
+|---|---|
+| Done · Claude Code | A turn finished (the reply is shown as plain text, Markdown stripped) |
+| Approve · Codex | The agent wants to run a command or use a tool ("Run: npm test") |
+| Plan ready · Claude Code | A plan is waiting for your approval |
+| Question · Claude Code | The agent asked you something |
+| Waiting · Gemini CLI | The agent is waiting for input |
+| Limit hit · Claude Code | A rate, usage or step limit stopped the turn |
+| Error · Grok Build | The turn ended with an error |
+| Stopped · Cursor | The turn was cancelled |
+
+What each agent reports: Claude Code and Grok Build send all of these. Codex and
+Gemini CLI send approvals but have no limit event. Antigravity sends done, step
+limits and errors. Cursor sends done, stopped and errors. Aider sends done.
 
 - **Click** a banner to go back. For Terminal and iTerm2, Turnring selects the
   exact tab the agent runs in; macOS asks once for permission to control that
@@ -101,7 +121,8 @@ reply is shown as plain text (Markdown is stripped).
 - Turnring stays quiet while you're already looking at the agent (its app is in
   front and, for Terminal and iTerm2, its tab is selected). Turn this off in
   **Preferences → General**.
-- Pick separate sounds for "Done" and "Waiting" in **Preferences → General**.
+- Pick one sound for "Done" and another for anything that needs you (approvals,
+  plans, questions, limits, errors) in **Preferences → General**.
 
 ## Menu
 
@@ -148,7 +169,7 @@ turnring ntfy my-topic --server https://ntfy.example.com
 turnring ntfy off
 ```
 
-"Waiting" pushes go out at high priority. Tapping a push opens the project's
+Approvals, plans, limits and errors go out at high priority. Tapping a push opens the project's
 repository page when it has a GitHub or GitLab `origin`. Replies too long for a
 banner come along as a `reply.txt` attachment. Each of these can be turned off
 in **Preferences → Phone**.
@@ -176,6 +197,22 @@ now. Install it with the script above, or build it:
 swift build -c release
 cp .build/release/turnring ~/.local/bin/
 ```
+
+## Windows
+
+The Windows build is a single `turnring.exe` with no tray icon. Each
+`turnring notify` shows a Windows toast and sends the ntfy push itself, and it
+honors pause, rules and history like the other builds. Download
+`turnring-<version>-windows-x86_64.zip` from the latest release, unzip it
+somewhere such as `%LOCALAPPDATA%\Turnring`, then run:
+
+```powershell
+.\turnring.exe setup        # add hooks for the agents it finds
+.\turnring.exe ntfy         # optional: phone pushes
+```
+
+Hooks call `turnring.exe` by its full path, so it doesn't need to be on `PATH`.
+Clicking a toast doesn't jump back to the agent yet.
 
 ## Uninstall
 
