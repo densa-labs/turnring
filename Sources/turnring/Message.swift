@@ -19,6 +19,9 @@ struct Message: Codable, Equatable {
     var app: String?
     /// The controlling terminal of the agent, for focusing the exact tab.
     var tty: String?
+    /// The project's repository web page. Worked out by `turnring notify`, which can read
+    /// the project folder: the agent may not (Desktop and Documents are privacy-protected).
+    var repo: String?
     var ts: String?
 }
 
@@ -64,7 +67,8 @@ extension Message {
 
     /// Builds the message from a hook payload or `--event`. Explicit `--title`/`--message` win.
     static func make(source: String?, payload: HookPayload?, event: String? = nil, title: String?, message: String?,
-                     cwd: String, app: String?, tty: String? = nil, now: Date = Date()) -> Message {
+                     cwd: String, app: String?, tty: String? = nil, repo: String? = nil,
+                     now: Date = Date()) -> Message {
         let dir = payload?.cwd ?? payload?.workspace_roots?.first ?? cwd
         let project = URL(fileURLWithPath: dir).lastPathComponent
         let agent = source.flatMap { agentNames[$0] }
@@ -99,6 +103,7 @@ extension Message {
             cwd: dir,
             app: app,
             tty: tty,
+            repo: repo,
             ts: ISO8601DateFormatter().string(from: now)
         )
     }

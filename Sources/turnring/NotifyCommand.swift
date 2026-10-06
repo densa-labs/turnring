@@ -31,9 +31,11 @@ enum NotifyCommand {
         }
 
         let env = ProcessInfo.processInfo.environment
+        let cwd = payload?.cwd ?? payload?.workspace_roots?.first ?? FileManager.default.currentDirectoryPath
         let msg = Message.make(source: source, payload: payload, event: event, title: title, message: message,
                                cwd: FileManager.default.currentDirectoryPath,
-                               app: Message.captureApp(env: env), tty: Message.captureTTY())
+                               app: Message.captureApp(env: env), tty: Message.captureTTY(),
+                               repo: Ntfy.repoURL(for: cwd))
         guard var line = try? JSONEncoder().encode(msg) else { return }
         line.append(0x0A)
 

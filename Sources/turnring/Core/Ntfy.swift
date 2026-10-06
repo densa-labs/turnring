@@ -39,7 +39,7 @@ enum Ntfy {
     static func request(for msg: Message, topic: String, server: URL) -> URLRequest? {
         let title = msg.fullTitle
         let priority = msg.event == "waiting" && Prefs.ntfyUrgentWaiting ? 4 : 3
-        let click = Prefs.ntfyClickRepo ? msg.cwd.flatMap(repoURL(for:)) : nil
+        let click = Prefs.ntfyClickRepo ? msg.repo : nil
         let tags = msg.event == "waiting" ? "hourglass" : msg.event == "done" ? "white_check_mark" : nil
 
         if Prefs.ntfyAttachReply, let detail = msg.detail {
